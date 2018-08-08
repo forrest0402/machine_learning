@@ -42,7 +42,7 @@ if os.path.isfile(model_ckpt):
 
 # start training
 if load:
-    saver.restore(sess, './model')
+    saver.restore(sess, './model/siamese')
 
 for step in range(50000):
     batch_x1, batch_y1 = mnist.train.next_batch(128)
