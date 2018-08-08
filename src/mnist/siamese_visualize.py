@@ -1,8 +1,7 @@
-from tensorflow.examples.tutorials.mnist import input_data
-
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib import offsetbox
+from tensorflow.examples.tutorials.mnist import input_data
 
 
 def visualize(embed, x_test, y_test):
@@ -41,12 +40,12 @@ def visualize(embed, x_test, y_test):
 
 
 if __name__ == "__main__":
-    mnist = input_data.read_data_sets('MNIST_data', one_hot=False)
+    mnist = input_data.read_data_sets('../data/mnist_data', one_hot=False)
     x_test = mnist.test.images
     y_test = mnist.test.labels
     x_test = x_test.reshape([-1, 28, 28])
 
-    embed = np.fromfile('embed.txt', dtype=np.float32)
+    embed = np.fromfile('./model/embed.txt', dtype=np.float32)
     embed = embed.reshape([-1, 2])
 
     visualize(embed, x_test, y_test)
