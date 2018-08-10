@@ -3,6 +3,8 @@ src/data
 .index
 .meta
 .xml
+.iml
+.gz
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
