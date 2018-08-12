@@ -5,7 +5,7 @@ from tensorflow.python.ops import variable_scope as vs
 import src.loss.triplet_loss as triplet_loss
 
 
-class triplet_network:
+class TripletNetwork:
 
     def __init__(self, length, embedding_size):
         self.hidden_layer_num = length * 64
