@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 import tensorflow as tf
-from tensorflow.python.ops import variable_scope as vs
-
 import src.loss.triplet_loss as triplet_loss
 
 
@@ -10,14 +8,15 @@ class TripletNetwork:
     def __init__(self, length, embedding_size):
         self.hidden_layer_num = length * 64
 
-        self.x1 = tf.placeholder(tf.float32, [None, length, embedding_size])
-        self.x2 = tf.placeholder(tf.float32, [None, length, embedding_size])
-        self.x3 = tf.placeholder(tf.float32, [None, length, embedding_size])
+        self.left = tf.placeholder(tf.float32, [None, length, embedding_size])
+        self.center = tf.placeholder(tf.float32, [None, length, embedding_size])
+        self.right = tf.placeholder(tf.float32, [None, length, embedding_size])
 
         with tf.variable_scope("triplet") as scope:
-            self.o1 = self.network(self.x1)
-            self.o2 = self.network(self.x2, True)
-            self.o3 = self.network(self.x3, True)
+            self.o1 = self.network(self.left)
+            scope.reuse_variables()
+            self.o2 = self.network(self.center)
+            self.o3 = self.network(self.right)
 
         # Create loss
         self.y_ = tf.placeholder(tf.float32, [None, 3])
@@ -28,9 +27,7 @@ class TripletNetwork:
         correct_predictions = tf.equal(tf.cast(tf.equal(self.y_[:, 1], self.y_[:, 2]), dtype=tf.int32), predictions)
         self.accuracy = tf.reduce_mean(correct_predictions)
 
-    def network(self, x, reuse=False):
-        if reuse:
-            vs.get_variable_scope().reuse_variables()
+    def network(self, x):
         node_num = x.get_shape()[1] * x.get_shape()[2]
         rs_x = tf.reshape(x, [-1, node_num])
         fc1 = self.fc_layer(rs_x, self.hidden_layer_num, "fc1")
