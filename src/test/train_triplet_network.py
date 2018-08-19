@@ -5,9 +5,9 @@ import tensorflow as tf
 
 from src.model.tripletnetwork import TripletNetwork
 
-BATCH_SIZE = 128
+BATCH_SIZE = 8
 EPOCH = 10
-BUFFER_SIZE = 100000
+BUFFER_SIZE = 64
 FILE_LINE_NUM = 17077358
 file_name = '../data/faq_training_tokenize.txt'
 
@@ -34,17 +34,22 @@ def train(train_data):
     iterator = train_data.make_initializable_iterator()
     train_step = tf.train.AdamOptimizer(0.01).minimize(model.loss)
     saver = tf.train.Saver()
-
+    input_element = iterator.get_next()
     with tf.Session() as sess:
         tf.global_variables_initializer().run()
         sess.run(iterator.initializer)
         for epoch_num in range(EPOCH):
             for step in range(int(FILE_LINE_NUM / BATCH_SIZE)):
-                input = iterator.get_next()
-                label = input[0]
-                x1 = get_ebedding(input[1], id2vector)
-                x2 = get_ebedding(input[2], id2vector)
-                x3 = get_ebedding(input[3], id2vector)
+                input = sess.run(input_element)
+                print(np.array(list(map(lambda x: str(x).split(' '), input[:, 0]))))
+                label = np.array(list(map(lambda x: str(x).split(' '), input[:, 0]))).astype(np.float)
+                input1 = np.array(list(map(lambda x: str(x).split(' '), input[:, 1]))).astype(np.int32)
+                input2 = np.array(list(map(lambda x: str(x).split(' '), input[:, 2]))).astype(np.int32)
+                input3 = np.array(list(map(lambda x: str(x).split(' '), input[:, 3]))).astype(np.int32)
+                print(input1.shape)
+                x1 = get_ebedding(input1, id2vector)
+                x2 = get_ebedding(input2, id2vector)
+                x3 = get_ebedding(input3, id2vector)
                 _, loss_v = sess.run([train_step, model.loss], feed_dict={
                     model.x1: x1,
                     model.x2: x2,
