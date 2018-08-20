@@ -19,6 +19,10 @@ class TripletNetwork:
             self.anchor_output = self.network(self.anchor_input)
             self.negative_output = self.network(self.negative_input)
 
+        self.d_pos = self.cosine(self.anchor_output, self.positive_output)
+        # tf.reduce_sum(tf.abs(self.anchor_output - self.positive_output), 1)
+        self.d_neg = self.cosine(self.anchor_output, self.negative_output)
+        # tf.reduce_sum(tf.abs(self.anchor_output - self.negative_output), 1)
         self.loss = self.cal_loss()
         self.accuracy = self.cal_accu()
 
@@ -55,15 +59,15 @@ class TripletNetwork:
         pool = tf.nn.max_pool(relu, ksize=[1, 2, 1, 1], strides=[1, 1, 1, 1], padding="VALID")
         return pool
 
+    def cosine(self, vec1, vec2):
+        p = tf.reduce_sum(tf.multiply(vec1, vec2), axis=1)
+        return p / tf.multiply(tf.sqrt(tf.reduce_sum(tf.square(vec1), 1)), tf.sqrt(tf.reduce_sum(tf.square(vec2), 1)))
+
     def cal_loss(self):
-        margin = 0.1
-        d_pos = tf.reduce_sum(tf.abs(self.anchor_output - self.positive_output), 1)
-        d_neg = tf.reduce_sum(tf.abs(self.anchor_output - self.negative_output), 1)
-        loss = tf.maximum(0.0, margin + d_pos - d_neg)
-        # loss = d_pos - d_neg
+        margin = 0.3
+        loss = tf.maximum(0.0, margin + self.d_pos - self.d_neg)
         return tf.reduce_mean(loss)
 
     def cal_accu(self):
-        d_pos = tf.reduce_sum(tf.abs(self.anchor_output - self.positive_output), 1)
-        d_neg = tf.reduce_sum(tf.abs(self.anchor_output - self.negative_output), 1)
-        return tf.reduce_mean(tf.cast(tf.argmin(tf.stack([d_neg, d_pos], axis=1), axis=1), dtype=tf.float32))
+        mean = tf.cast(tf.argmin(tf.stack([self.d_neg, self.d_pos], axis=1), axis=1), dtype=tf.float32)
+        return tf.reduce_mean(mean)

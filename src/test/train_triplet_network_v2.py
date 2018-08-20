@@ -43,14 +43,19 @@ def train(train_data):
                 x1 = get_ebedding(input1, id2vector)
                 x2 = get_ebedding(input2, id2vector)
                 x3 = get_ebedding(input3, id2vector)
-                _, loss_v, accu = sess.run([train_step, model.loss, model.accuracy], feed_dict={
-                    model.anchor_input: x1,
-                    model.positive_input: x2,
-                    model.negative_input: x3})
+                _, loss_v, accu, anchor, pos, neg = sess.run(
+                    [train_step, model.loss, model.accuracy, model.anchor_output, model.d_pos, model.d_neg],
+                    feed_dict={
+                        model.anchor_input: x1,
+                        model.positive_input: x2,
+                        model.negative_input: x3})
 
                 # print(input1)
 
                 if step % 10 == 0:
+                    print(anchor)
+                    print(pos)
+                    print(neg)
                     print("epoch {}, step {}/{}: loss {} accuracy {}"
                           .format(epoch_num, step, int(FILE_LINE_NUM / BATCH_SIZE), loss_v, accu))
 
