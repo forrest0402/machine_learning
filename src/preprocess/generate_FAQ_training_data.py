@@ -158,7 +158,7 @@ def tokenize_embedding(output_file_name):
 
 if __name__ == '__main__':
     excel_file_name = '../data/faq_train_90_.xlsx'
-    output_file_name = '../data/faq_training.txt'
+    output_file_name = '../data/train.txt'
     tokenize_embedding(output_file_name=output_file_name)
     # if Path(output_file_name).is_file():
     #     shuffle_file(output_file_name=output_file_name)
