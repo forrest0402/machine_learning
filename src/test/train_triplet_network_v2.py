@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
 
+import os
+
 import numpy as np
 import tensorflow as tf
-import os
 
 from src.model.tripletnetwork_v2 import TripletNetwork
 
-BATCH_SIZE = 64
+BATCH_SIZE = 128
 EPOCH = 10
-BUFFER_SIZE = 64
+BUFFER_SIZE = 1024
 FILE_LINE_NUM = 0
 train_file_name = '../data/train_tokenize.txt'
 test_file_name = '../data/test_tokenize.txt'
@@ -21,7 +22,7 @@ def get_ebedding(input, embedding_matrix):
 
 def train(train_data):
     id2vector = {index - 1: list(map(float, line.split(' ')[1:]))
-                 for index, line in enumerate(open('../data/model.vec', 'r'))}
+                 for index, line in enumerate(open('../data/model.vec', 'r', encoding="utf-8"))}
     id2vector[-1] = [0.0] * 256
     id2vector[-2] = [1.0] * 256
 
@@ -37,12 +38,18 @@ def train(train_data):
         for epoch_num in range(EPOCH):
             for step in range(int(FILE_LINE_NUM / BATCH_SIZE)):
                 input = sess.run(input_element)
-                input1 = np.array(list(map(lambda x: str(x).split(' '), input[:, 0]))).astype(np.int32)
-                input2 = np.array(list(map(lambda x: str(x).split(' '), input[:, 1]))).astype(np.int32)
-                input3 = np.array(list(map(lambda x: str(x).split(' '), input[:, 2]))).astype(np.int32)
-                x1 = get_ebedding(input1, id2vector)
-                x2 = get_ebedding(input2, id2vector)
-                x3 = get_ebedding(input3, id2vector)
+                input1 = np.array(list(map(lambda x: str(x, encoding="utf-8").split(' '), input[:, 0]))).astype(
+                    np.int32)
+                input2 = np.array(list(map(lambda x: str(x, encoding="utf-8").split(' '), input[:, 1]))).astype(
+                    np.int32)
+                input3 = np.array(list(map(lambda x: str(x, encoding="utf-8").split(' '), input[:, 2]))).astype(
+                    np.int32)
+                x1 = np.array(get_ebedding(input1, id2vector))
+                x2 = np.array(get_ebedding(input2, id2vector))
+                x3 = np.array(get_ebedding(input3, id2vector))
+                # print(x1.shape)
+                # print(x2.shape)
+                # print(x3.shape)
                 _, loss_v, accu, anchor, pos, neg = sess.run(
                     [train_step, model.loss, model.accuracy, model.anchor_output, model.d_pos, model.d_neg],
                     feed_dict={
@@ -52,10 +59,10 @@ def train(train_data):
 
                 # print(input1)
 
-                if step % 10 == 0:
-                    print(anchor)
-                    print(pos)
-                    print(neg)
+                if step % 1000 == 0:
+                    # print(anchor)
+                    # print(pos)
+                    # print(neg)
                     print("epoch {}, step {}/{}: loss {} accuracy {}"
                           .format(epoch_num, step, int(FILE_LINE_NUM / BATCH_SIZE), loss_v, accu))
 
@@ -63,7 +70,7 @@ def train(train_data):
                     print('Model diverged with loss = NaN')
                     quit()
 
-                if step % 10000 == 0:
+                if step % 100000 == 0:
                     saver.save(sess, './model/triplet_network.pb')
                     print('step %d: loss %.3f' % (step, loss_v))
 
