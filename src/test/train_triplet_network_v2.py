@@ -8,7 +8,7 @@ import tensorflow as tf
 from src.model.tripletnetwork_v2 import TripletNetwork
 
 BATCH_SIZE = 128
-EPOCH = 10
+EPOCH = 5
 BUFFER_SIZE = 1024
 FILE_LINE_NUM = 0
 train_file_name = '../data/train_tokenize.txt'
@@ -20,6 +20,37 @@ def get_ebedding(input, embedding_matrix):
     return [[embedding_matrix[id] for id in one] for one in input]
 
 
+def convert_input(input, id2vector):
+    input1 = np.array(list(map(lambda x: str(x, encoding="utf-8").split(' '), input[:, 0]))).astype(
+        np.int32)
+    input2 = np.array(list(map(lambda x: str(x, encoding="utf-8").split(' '), input[:, 1]))).astype(
+        np.int32)
+    input3 = np.array(list(map(lambda x: str(x, encoding="utf-8").split(' '), input[:, 2]))).astype(
+        np.int32)
+    x1 = np.array(get_ebedding(input1, id2vector))
+    x2 = np.array(get_ebedding(input2, id2vector))
+    x3 = np.array(get_ebedding(input3, id2vector))
+    return x1, x2, x3
+
+
+def test(sess, model, id2vector):
+    print("************************** test *******************************")
+    with open(test_file_name, 'r', encoding='utf-8') as fr:
+        test_data = []
+        for line in fr.readlines():
+            test_data.append(line.split('\t'))
+        test_data = np.array(test_data)
+        print(test_data.shape)
+        x1, x2, x3 = convert_input(test_data, id2vector)
+
+        accu = sess.run([model.accuracy],
+                        feed_dict={
+                            model.anchor_input: x1,
+                            model.positive_input: x2,
+                            model.negative_input: x3})
+        print("test accu {}".format(accu))
+
+
 def train(train_data):
     id2vector = {index - 1: list(map(float, line.split(' ')[1:]))
                  for index, line in enumerate(open('../data/model.vec', 'r', encoding="utf-8"))}
@@ -29,35 +60,32 @@ def train(train_data):
     model = TripletNetwork(25, 256)
     iterator = train_data.make_initializable_iterator()
     train_step = tf.train.AdamOptimizer(0.001).minimize(model.loss)
-    saver = tf.train.Saver()
+    saver = tf.train.Saver(max_to_keep=5)
     input_element = iterator.get_next()
 
-    with tf.Session() as sess:
+    sess_conf = tf.ConfigProto(allow_soft_placement=True, log_device_placement=True)
+    sess_conf.gpu_options.allow_growth = True
+
+    model_save_path = './model/triplet_network'
+    with tf.Session(config=sess_conf) as sess:
         sess.run((tf.global_variables_initializer(), tf.local_variables_initializer()))
         sess.run(iterator.initializer)
+        if os.path.exists(model_save_path + '.meta'):
+            saver = tf.train.import_meta_graph(model_save_path + '.meta')
+            saver.restore(sess, tf.train.latest_checkpoint("./model/"))
+            test(sess, model, id2vector)
+
         for epoch_num in range(EPOCH):
             for step in range(int(FILE_LINE_NUM / BATCH_SIZE)):
                 input = sess.run(input_element)
-                input1 = np.array(list(map(lambda x: str(x, encoding="utf-8").split(' '), input[:, 0]))).astype(
-                    np.int32)
-                input2 = np.array(list(map(lambda x: str(x, encoding="utf-8").split(' '), input[:, 1]))).astype(
-                    np.int32)
-                input3 = np.array(list(map(lambda x: str(x, encoding="utf-8").split(' '), input[:, 2]))).astype(
-                    np.int32)
-                x1 = np.array(get_ebedding(input1, id2vector))
-                x2 = np.array(get_ebedding(input2, id2vector))
-                x3 = np.array(get_ebedding(input3, id2vector))
-                # print(x1.shape)
-                # print(x2.shape)
-                # print(x3.shape)
+                x1, x2, x3 = convert_input(input, id2vector)
+
                 _, loss_v, accu, anchor, pos, neg = sess.run(
                     [train_step, model.loss, model.accuracy, model.anchor_output, model.d_pos, model.d_neg],
                     feed_dict={
                         model.anchor_input: x1,
                         model.positive_input: x2,
                         model.negative_input: x3})
-
-                # print(input1)
 
                 if step % 1000 == 0:
                     # print(anchor)
@@ -70,9 +98,11 @@ def train(train_data):
                     print('Model diverged with loss = NaN')
                     quit()
 
-                if step % 100000 == 0:
-                    saver.save(sess, './model/triplet_network.pb')
+                if step % 10000 == 0:
+                    saver.save(sess, model_save_path)
                     print('step %d: loss %.3f' % (step, loss_v))
+
+            # output_grap_def = tf.graph_util.convert_variables_to_constants(sess,sess.graph_def,output_node_names=[''])
 
 
 def make_dataset(file_name):

@@ -3,6 +3,7 @@
 @Author: xiezizhe
 @Date: 2018/8/20 下午2:54
 """
+import numpy as np
 
 
 def convert_train(file_name):
@@ -27,6 +28,13 @@ def convert_train(file_name):
 if __name__ == '__main__':
     # convert_train('../data/train.txt')
     # convert_train('../data/test.txt')
+    with open('../data/test_tokenize.txt', 'r', encoding='utf-8') as fr:
+        test_data = []
+        for line in fr.readlines():
+            test_data.append([list(map(lambda x: [x], line.split('\t')))])
+        test = np.array(test_data)
+        print(test.shape)
+
     with open('../data/train_tokenizewrong.txt', "r", encoding="utf-8") as fr:
         with open('../data/train_tokenize.txt', 'w', encoding="utf-8") as fw:
             for line in fr.readlines():
