@@ -21,11 +21,11 @@ def get_ebedding(input, embedding_matrix):
 
 
 def convert_input(input, id2vector):
-    input1 = np.array(list(map(lambda x: str(x, encoding="utf-8").split(' '), input[:, 0]))).astype(
+    input1 = np.array(list(map(lambda x: str(x).split(' '), input[:, 0]))).astype(
         np.int32)
-    input2 = np.array(list(map(lambda x: str(x, encoding="utf-8").split(' '), input[:, 1]))).astype(
+    input2 = np.array(list(map(lambda x: str(x).split(' '), input[:, 1]))).astype(
         np.int32)
-    input3 = np.array(list(map(lambda x: str(x, encoding="utf-8").split(' '), input[:, 2]))).astype(
+    input3 = np.array(list(map(lambda x: str(x).split(' '), input[:, 2]))).astype(
         np.int32)
     x1 = np.array(get_ebedding(input1, id2vector))
     x2 = np.array(get_ebedding(input2, id2vector))
@@ -34,8 +34,8 @@ def convert_input(input, id2vector):
 
 
 def test(sess, model, id2vector):
-    print("************************** test *******************************")
-    with open(test_file_name, 'r', encoding='utf-8') as fr:
+    print("************************** tests *******************************")
+    with open(test_file_name, 'r') as fr:
         test_data = []
         for line in fr.readlines():
             test_data.append(line.split('\t'))
@@ -48,12 +48,12 @@ def test(sess, model, id2vector):
                             model.anchor_input: x1,
                             model.positive_input: x2,
                             model.negative_input: x3})
-        print("test accu {}".format(accu))
+        print("tests accu {}".format(accu))
 
 
 def train(train_data):
     id2vector = {index - 1: list(map(float, line.split(' ')[1:]))
-                 for index, line in enumerate(open('../data/model.vec', 'r', encoding="utf-8"))}
+                 for index, line in enumerate(open('../data/model.vec', 'r'))}
     id2vector[-1] = [0.0] * 256
     id2vector[-2] = [1.0] * 256
 
@@ -66,7 +66,7 @@ def train(train_data):
     sess_conf = tf.ConfigProto(allow_soft_placement=True, log_device_placement=True)
     sess_conf.gpu_options.allow_growth = True
 
-    model_save_path = './model/triplet_network'
+    model_save_path = './model/triplet_network.ckpt'
     with tf.Session(config=sess_conf) as sess:
         sess.run((tf.global_variables_initializer(), tf.local_variables_initializer()))
         sess.run(iterator.initializer)
@@ -74,7 +74,7 @@ def train(train_data):
             saver = tf.train.import_meta_graph(model_save_path + '.meta')
             saver.restore(sess, tf.train.latest_checkpoint("./model/"))
             test(sess, model, id2vector)
-
+        # tests(sess, model, id2vector)
         for epoch_num in range(EPOCH):
             for step in range(int(FILE_LINE_NUM / BATCH_SIZE)):
                 input = sess.run(input_element)
@@ -101,6 +101,7 @@ def train(train_data):
                 if step % 10000 == 0:
                     saver.save(sess, model_save_path)
                     print('step %d: loss %.3f' % (step, loss_v))
+                    test(sess, model, id2vector)
 
             # output_grap_def = tf.graph_util.convert_variables_to_constants(sess,sess.graph_def,output_node_names=[''])
 

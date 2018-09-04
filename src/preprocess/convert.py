@@ -27,7 +27,7 @@ def convert_train(file_name):
 
 if __name__ == '__main__':
     # convert_train('../data/train.txt')
-    # convert_train('../data/test.txt')
+    # convert_train('../data/tests.txt')
     with open('../data/test_tokenize.txt', 'r', encoding='utf-8') as fr:
         test_data = []
         for line in fr.readlines():

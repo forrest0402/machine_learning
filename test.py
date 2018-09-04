@@ -7,7 +7,7 @@ from keras.models import Sequential
 num_classes = 10
 model_name = 'cifar10.h5'
 
-# The data, shuffled and split between train and test sets:
+# The data, shuffled and split between train and tests sets:
 (x_train, y_train), (x_test, y_test) = cifar10.load_data()
 
 x_train = x_train.astype('float32') / 255
