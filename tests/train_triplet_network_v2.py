@@ -1,117 +1,107 @@
 # -*- coding: utf-8 -*-
+"""
+@Author: xiezizhe
+@Date: 2018/8/30 下午1:59
+"""
+
 import sys
 import os
-
-sys.path.extend([os.path.dirname(os.path.dirname(__file__)), os.path.dirname(__file__)])
-
 import numpy as np
 import tensorflow as tf
 
+sys.path.extend([os.path.dirname(os.path.dirname(__file__)), os.path.dirname(__file__)])
+
+import src.utils.converter as converter
 from src.model.tripletnetwork_v2 import TripletNetwork
+
+# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 BATCH_SIZE = 128
 EPOCH = 5
 BUFFER_SIZE = 1024
 FILE_LINE_NUM = 0
 ROOT_PATH = os.path.dirname(os.path.dirname(__file__))
+
 train_file_name = os.path.join(ROOT_PATH, 'data/train_tokenize.txt')
 test_file_name = os.path.join(ROOT_PATH, 'data/test_tokenize.txt')
 word2vec_file_name = os.path.join(ROOT_PATH, 'data/model.vec')
+model_save_path = os.path.join(ROOT_PATH, 'model/')
+model_name = "triplet_network.ckpt"
 
 
-def get_ebedding(input, embedding_matrix):
-    # return tf.nn.embedding_lookup(embedding_matrix, input)
-    return [[embedding_matrix[id] for id in one] for one in input]
+def train():
+    """
 
+    :param train_data:
+    :return:
+    """
+    with tf.Graph().as_default() as g:
+        train_data = make_dataset(train_file_name)
+        iterator = train_data.make_initializable_iterator()
+        input_element = iterator.get_next()
 
-def convert_input(input, id2vector):
-    input1 = np.array(list(map(lambda x: str(x).split(' '), input[:, 0]))).astype(
-        np.int32)
-    input2 = np.array(list(map(lambda x: str(x).split(' '), input[:, 1]))).astype(
-        np.int32)
-    input3 = np.array(list(map(lambda x: str(x).split(' '), input[:, 2]))).astype(
-        np.int32)
-    x1 = np.array(get_ebedding(input1, id2vector))
-    x2 = np.array(get_ebedding(input2, id2vector))
-    x3 = np.array(get_ebedding(input3, id2vector))
-    return x1, x2, x3
+        id2vector = {index - 1: list(map(float, line.split(' ')[1:]))
+                     for index, line in enumerate(open(word2vec_file_name, 'r'))}
+        id2vector[-1] = [0.0] * 256
+        id2vector[-2] = [1.0] * 256
 
+        model = TripletNetwork(25, 256)
+        global_step = tf.Variable(0.0, trainable=False)
+        train_step = tf.train.AdamOptimizer(0.001).minimize(model.loss)
 
-def test(sess, model, id2vector):
-    print("************************** tests *******************************")
-    with open(test_file_name, 'r') as fr:
-        test_data = []
-        for line in fr.readlines():
-            test_data.append(line.split('\t'))
-        test_data = np.array(test_data)
-        print(test_data.shape)
-        x1, x2, x3 = convert_input(test_data, id2vector)
+        sess_conf = tf.ConfigProto(allow_soft_placement=True, log_device_placement=True)
+        sess_conf.gpu_options.allow_growth = True
 
-        accu = sess.run([model.accuracy],
+        saver = tf.train.Saver()
+        with tf.Session() as sess:
+
+            sess.run(iterator.initializer)
+            # if os.path.exists(model_save_path + model_name + '.meta'):
+            #     saver = tf.train.import_meta_graph(model_save_path + model_name + '.meta')
+            #     saver.restore(sess, tf.train.latest_checkpoint(model_save_path))
+
+            ckpt = tf.train.get_checkpoint_state(model_save_path)
+            if ckpt and ckpt.model_checkpoint_path:
+                print(ckpt.model_checkpoint_path)
+                saver.restore(sess, ckpt.model_checkpoint_path)
+            else:
+                sess.run((tf.global_variables_initializer(), tf.local_variables_initializer()))
+
+            for epoch_num in range(EPOCH):
+                for step in range(int(FILE_LINE_NUM / BATCH_SIZE)):
+
+                    input = sess.run(input_element)
+                    x1, x2, x3 = converter.convert_input(input, id2vector)
+
+                    _, loss_v, accu = sess.run(
+                        [train_step, model.loss, model.accuracy, global_step],
                         feed_dict={
                             model.anchor_input: x1,
                             model.positive_input: x2,
                             model.negative_input: x3})
-        print("tests accu {}".format(accu))
 
+                    if step % 1000 == 0:
+                        print("epoch {}, step {}/{}: loss {} accuracy {}"
+                              .format(epoch_num, step, int(FILE_LINE_NUM / BATCH_SIZE),
+                                      loss_v, accu))
+                        saver.save(sess, model_save_path + model_name, global_step=global_step)
 
-def train(train_data):
-    id2vector = {index - 1: list(map(float, line.split(' ')[1:]))
-                 for index, line in enumerate(open(word2vec_file_name, 'r'))}
-    id2vector[-1] = [0.0] * 256
-    id2vector[-2] = [1.0] * 256
+                    if np.isnan(loss_v):
+                        print('Model diverged with loss = NaN')
+                        quit()
 
-    model = TripletNetwork(25, 256)
-    iterator = train_data.make_initializable_iterator()
-    train_step = tf.train.AdamOptimizer(0.001).minimize(model.loss)
-    saver = tf.train.Saver(max_to_keep=5)
-    input_element = iterator.get_next()
+                saver.save(sess, model_save_path + model_name, global_step=global_step)
+                print('step %d: loss %.3f' % (step, loss_v))
 
-    sess_conf = tf.ConfigProto(allow_soft_placement=True, log_device_placement=True)
-    sess_conf.gpu_options.allow_growth = True
-
-    model_save_path = './model/triplet_network.ckpt'
-    with tf.Session(config=sess_conf) as sess:
-        sess.run((tf.global_variables_initializer(), tf.local_variables_initializer()))
-        sess.run(iterator.initializer)
-        if os.path.exists(model_save_path + '.meta'):
-            saver = tf.train.import_meta_graph(model_save_path + '.meta')
-            saver.restore(sess, tf.train.latest_checkpoint("./model/"))
-            test(sess, model, id2vector)
-        # tests(sess, model, id2vector)
-        for epoch_num in range(EPOCH):
-            for step in range(int(FILE_LINE_NUM / BATCH_SIZE)):
-                input = sess.run(input_element)
-                x1, x2, x3 = convert_input(input, id2vector)
-
-                _, loss_v, accu, anchor, pos, neg = sess.run(
-                    [train_step, model.loss, model.accuracy, model.anchor_output, model.d_pos,
-                     model.d_neg],
-                    feed_dict={
-                        model.anchor_input: x1,
-                        model.positive_input: x2,
-                        model.negative_input: x3})
-
-                if step % 1000 == 0:
-                    # print(anchor)
-                    # print(pos)
-                    # print(neg)
-                    print("epoch {}, step {}/{}: loss {} accuracy {}"
-                          .format(epoch_num, step, int(FILE_LINE_NUM / BATCH_SIZE), loss_v, accu))
-
-                if np.isnan(loss_v):
-                    print('Model diverged with loss = NaN')
-                    quit()
-
-                if step % 10000 == 0:
-                    saver.save(sess, model_save_path)
-                    print('step %d: loss %.3f' % (step, loss_v))
-                    test(sess, model, id2vector)
-
-            # output_grap_def = tf.graph_util.convert_variables_to_constants(sess,sess.graph_def,output_node_names=[''])
+                # output_grap_def = tf.graph_util.convert_variables_to_constants(sess,sess.graph_def,output_node_names=[''])
 
 
 def make_dataset(file_name):
+    """
+
+    :param file_name:
+    :return:
+    """
     return tf.data.TextLineDataset(file_name) \
         .map(lambda s: tf.string_split([s], delimiter="\t").values) \
         .shuffle(buffer_size=BUFFER_SIZE) \
@@ -119,14 +109,20 @@ def make_dataset(file_name):
 
 
 def main(argv=None):
+    """
+
+    :param argv:
+    :return:
+    """
+
     print("************** start *****************")
-    train_data = make_dataset(train_file_name)
     p = os.popen('wc -l {}'.format(train_file_name))
     global FILE_LINE_NUM
     FILE_LINE_NUM = int(p.read().strip().split(' ')[0])
     print("Input file has {} lines".format(FILE_LINE_NUM))
-    train(train_data)
+    train()
 
 
 if __name__ == '__main__':
+    # tf.logging.set_verbosity(tf.logging.ERROR)
     tf.app.run()
