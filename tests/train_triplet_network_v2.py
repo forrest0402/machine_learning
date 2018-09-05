@@ -73,7 +73,7 @@ def train():
                     input = sess.run(input_element)
                     x1, x2, x3 = converter.convert_input(input, id2vector)
 
-                    _, loss_v, accu = sess.run(
+                    _, loss_v, accu, __ = sess.run(
                         [train_step, model.loss, model.accuracy, global_step],
                         feed_dict={
                             model.anchor_input: x1,

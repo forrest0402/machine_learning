@@ -13,7 +13,7 @@ sys.path.extend([os.path.dirname(os.path.dirname(__file__)), os.path.dirname(__f
 
 import src.utils.converter as converter
 from src.model.tripletnetwork_v2 import TripletNetwork
-import tests.train_triplet_network_v2 as train
+import train_triplet_network_v2 as train
 
 if __name__ == '__main__':
     with tf.Graph().as_default() as g:
