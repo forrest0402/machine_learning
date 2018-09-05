@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
-
+import sys
 import os
+
+sys.path.extend([os.path.dirname(os.path.dirname(__file__)), os.path.dirname(__file__)])
 
 import numpy as np
 import tensorflow as tf
@@ -11,8 +13,10 @@ BATCH_SIZE = 128
 EPOCH = 5
 BUFFER_SIZE = 1024
 FILE_LINE_NUM = 0
-train_file_name = '../data/train_tokenize.txt'
-test_file_name = '../data/test_tokenize.txt'
+ROOT_PATH = os.path.dirname(os.path.dirname(__file__))
+train_file_name = os.path.join(ROOT_PATH, 'data/train_tokenize.txt')
+test_file_name = os.path.join(ROOT_PATH, 'data/test_tokenize.txt')
+word2vec_file_name = os.path.join(ROOT_PATH, 'data/model.vec')
 
 
 def get_ebedding(input, embedding_matrix):
@@ -53,7 +57,7 @@ def test(sess, model, id2vector):
 
 def train(train_data):
     id2vector = {index - 1: list(map(float, line.split(' ')[1:]))
-                 for index, line in enumerate(open('../data/model.vec', 'r'))}
+                 for index, line in enumerate(open(word2vec_file_name, 'r'))}
     id2vector[-1] = [0.0] * 256
     id2vector[-2] = [1.0] * 256
 
@@ -81,7 +85,8 @@ def train(train_data):
                 x1, x2, x3 = convert_input(input, id2vector)
 
                 _, loss_v, accu, anchor, pos, neg = sess.run(
-                    [train_step, model.loss, model.accuracy, model.anchor_output, model.d_pos, model.d_neg],
+                    [train_step, model.loss, model.accuracy, model.anchor_output, model.d_pos,
+                     model.d_neg],
                     feed_dict={
                         model.anchor_input: x1,
                         model.positive_input: x2,
@@ -114,6 +119,7 @@ def make_dataset(file_name):
 
 
 def main(argv=None):
+    print("************** start *****************")
     train_data = make_dataset(train_file_name)
     p = os.popen('wc -l {}'.format(train_file_name))
     global FILE_LINE_NUM

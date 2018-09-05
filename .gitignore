@@ -11,6 +11,8 @@ tests/model/
 src/mnist/model/
 *.DS_Store
 .idea/
+model/
+src/temp.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
