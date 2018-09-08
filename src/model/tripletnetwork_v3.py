@@ -28,8 +28,8 @@ class TripletNetwork:
         self.accuracy = self.cal_accu()
 
     def network(self, x):
-        cnn1 = self.cnn_layer(tf.expand_dims(x, -1), "cnn1", [3, 256, 1, 256])
-        cnn2 = self.cnn_layer(cnn1, "cnn2", [5, 1, 256, 512])
+        cnn1 = self.cnn_layer(tf.expand_dims(x, -1), "cnn1", [3, 256, 1, 512])
+        cnn2 = self.cnn_layer(cnn1, "cnn2", [5, 1, 512, 1024])
 
         flatten_layer = tf.contrib.layers.flatten(cnn2, 'flatten_layer')
         weights = tf.get_variable(shape=[flatten_layer.shape[-1], 128], dtype=tf.float32,
@@ -37,10 +37,10 @@ class TripletNetwork:
                                   name='fc_weights')
         biases = tf.get_variable(shape=[128], dtype=tf.float32,
                                  initializer=tf.constant_initializer(0.0), name='fc_biases')
-        logit_output = tf.nn.relu(tf.nn.bias_add(tf.matmul(flatten_layer, weights), biases,
+        logit_output = tf.nn.tanh(tf.nn.bias_add(tf.matmul(flatten_layer, weights), biases,
                                                  name='logit_output'))
 
-        out = tf.layers.dropout(logit_output, rate=0.3, training=self.train)
+        out = tf.layers.dropout(logit_output, rate=0.5, training=self.train)
         return out
 
     def fc_layer(self, tensor, n_weight, name):
@@ -59,7 +59,7 @@ class TripletNetwork:
         conv_biases = tf.get_variable(name + "bias", [shape[3]],
                                       initializer=tf.constant_initializer(0.0))
         conv = tf.nn.conv2d(tensor, conv_weights, strides=[1, 1, 1, 1], padding="VALID")
-        tanh = tf.nn.relu(tf.nn.bias_add(conv, conv_biases))
+        tanh = tf.nn.tanh(tf.nn.bias_add(conv, conv_biases))
         bn = tf.layers.batch_normalization(tanh, training=self.train, reuse=tf.AUTO_REUSE,
                                            name=name)
         pool = tf.nn.max_pool(bn, ksize=[1, 2, 1, 1], strides=[1, 1, 1, 1], padding="VALID")

@@ -47,12 +47,13 @@ def train():
 
         model = TripletNetwork(25, 256, train=True)
         global_step = tf.Variable(0.0, trainable=False)
-        learning_rate = tf.train.exponential_decay(learning_rate=0.1, global_step=global_step,
-                                                   decay_steps=5000,
-                                                   decay_rate=0.1, staircase=True)
+        learning_rate = tf.train.exponential_decay(learning_rate=0.001, global_step=global_step,
+                                                   decay_steps=10000,
+                                                   decay_rate=0.95, staircase=True)
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):
-            train_op = tf.train.AdamOptimizer(0.001).minimize(model.loss, global_step=global_step)
+            train_op = tf.train.AdamOptimizer(learning_rate=learning_rate) \
+                .minimize(model.loss, global_step=global_step)
 
         tf_config = tf.ConfigProto()
         tf_config.gpu_options.allow_growth = True
@@ -62,10 +63,6 @@ def train():
         with tf.Session(config=tf_config) as sess:
 
             sess.run(iterator.initializer)
-            # if os.path.exists(model_save_path + model_name + '.meta'):
-            #     saver = tf.train.import_meta_graph(model_save_path + model_name + '.meta')
-            #     saver.restore(sess, tf.train.latest_checkpoint(model_save_path))
-
             ckpt = tf.train.get_checkpoint_state(model_save_path)
             if ckpt and ckpt.model_checkpoint_path:
                 print(ckpt.model_checkpoint_path)
