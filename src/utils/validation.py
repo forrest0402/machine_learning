@@ -4,6 +4,7 @@
 @Author: xiezizhe
 @Date: 2018/9/6 下午5:17
 """
+import train_triplet_network_v3 as train
 
 
 def validate(file_name):
@@ -30,6 +31,6 @@ def validate(file_name):
 
 if __name__ == '__main__':
     print("*******************validate train.txt*******************")
-    validate('train_tokenize.txt')
+    # validate('train_tokenize.txt')
     print("*******************validate test.txt*******************")
-    validate('test_tokenize.txt')
+    validate(train.test_file_name)

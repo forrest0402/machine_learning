@@ -131,7 +131,7 @@ def get_embedding(word2idx, sentence, cache):
 def tokenize_embedding(output_file_name):
     word2idx = dict()
     total_num = 0
-    for index, line in enumerate(open('../data/model.vec', 'r', encoding="utf-8")):
+    for index, line in enumerate(open('../../data/model.vec', 'r', encoding="utf-8")):
         word_embedding = line.split(' ')
         total_num += 1
         if len(word_embedding) >= 256:
@@ -146,8 +146,8 @@ def tokenize_embedding(output_file_name):
                     print("read {} lines".format(index))
                 try:
                     array = line.split('\t')
-                    fw.write("{}\t{}\t{}\t{}".format(array[0], get_embedding(word2idx, array[1], cache),
-                                                     get_embedding(word2idx, array[2], cache),
+                    fw.write("{}\t{}\t{}".format(get_embedding(word2idx, array[2], cache),
+                                                     get_embedding(word2idx, array[1], cache),
                                                      get_embedding(word2idx, array[3], cache)))
                     fw.write('\n')
                 except Exception:
@@ -157,8 +157,8 @@ def tokenize_embedding(output_file_name):
 
 
 if __name__ == '__main__':
-    excel_file_name = '../data/faq_train_90_.xlsx'
-    output_file_name = '../data/train.txt'
+    excel_file_name = '../../data/faq_train_90_.xlsx'
+    output_file_name = '../../data/train.txt'
     tokenize_embedding(output_file_name=output_file_name)
     # if Path(output_file_name).is_file():
     #     shuffle_file(output_file_name=output_file_name)

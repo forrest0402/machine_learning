@@ -8,11 +8,11 @@ class TripletNetwork:
     Add batch normalization
     """
 
-    def __init__(self, length, embedding_size, train=False):
-        self.train = train
-        self.positive_input = tf.placeholder(tf.float32, [None, length, embedding_size])
-        self.anchor_input = tf.placeholder(tf.float32, [None, length, embedding_size])
-        self.negative_input = tf.placeholder(tf.float32, [None, length, embedding_size])
+    def __init__(self, length, embedding_size):
+        self.positive_input = tf.placeholder(tf.float32, [None, length, embedding_size], name="positive_input")
+        self.anchor_input = tf.placeholder(tf.float32, [None, length, embedding_size], name="anchor_input")
+        self.negative_input = tf.placeholder(tf.float32, [None, length, embedding_size], name="negative_input")
+        self.training = tf.placeholder(tf.bool, name="training")
 
         with tf.variable_scope("triplet") as scope:
             self.positive_output = self.network(self.positive_input)
@@ -41,8 +41,8 @@ class TripletNetwork:
         b = tf.get_variable(name + 'b', dtype=tf.float32,
                             initializer=tf.constant(0.01, shape=[n_weight], dtype=tf.float32))
         fc = tf.nn.bias_add(tf.matmul(tensor, W), b)
-        if not last_layer:
-            fc = tf.layers.dropout(tf.nn.tanh(fc), training=self.train)
+        # if not last_layer:
+        #     fc = tf.layers.dropout(tf.nn.tanh(fc), training=self.train)
         return fc
 
     def cnn_layer(self, tensor, name, shape):
@@ -52,8 +52,7 @@ class TripletNetwork:
                                       initializer=tf.constant_initializer(0.0))
         conv = tf.nn.conv2d(tensor, conv_weights, strides=[1, 1, 1, 1], padding="VALID")
         tanh = tf.nn.tanh(tf.nn.bias_add(conv, conv_biases))
-        bn = tf.layers.batch_normalization(tanh, training=self.train, reuse=tf.AUTO_REUSE,
-                                           name=name)
+        bn = tf.layers.batch_normalization(tanh, training=self.training, name=name)
         pool = tf.nn.max_pool(bn, ksize=[1, 2, 1, 1], strides=[1, 1, 1, 1], padding="VALID")
         return pool
 
@@ -63,7 +62,7 @@ class TripletNetwork:
                                tf.sqrt(tf.reduce_sum(tf.square(vec2), 1)))
 
     def cal_loss(self):
-        margin = 0.3
+        margin = 0.01
         loss = tf.maximum(0.0, margin + self.d_pos - self.d_neg)
         return tf.reduce_mean(loss)
 

@@ -13,3 +13,4 @@ src/mnist/model/
 /model/
 src/temp.py
 *.pyc
+temp/
