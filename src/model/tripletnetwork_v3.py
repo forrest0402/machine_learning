@@ -15,7 +15,7 @@ class TripletNetwork:
         self.training = tf.placeholder(tf.bool, name="training")
 
         with tf.variable_scope("triplet") as scope:
-            self.positive_output = self.network(self.positive_input)
+            self.positive_output = self.network(self.positive_input, reuse=False)
             scope.reuse_variables()
             self.anchor_output = self.network(self.anchor_input)
             self.negative_output = self.network(self.negative_input)
@@ -25,9 +25,9 @@ class TripletNetwork:
         self.loss = self.cal_loss()
         self.accuracy = self.cal_accu()
 
-    def network(self, x):
-        cnn1 = self.cnn_layer(tf.expand_dims(x, -1), "cnn1", [3, 256, 1, 512])
-        cnn2 = self.cnn_layer(cnn1, "cnn2", [5, 1, 512, 1024])
+    def network(self, x, reuse=True):
+        cnn2 = self.cnn_layer(tf.expand_dims(x, -1), "cnn1", [3, 256, 1, 512], reuse=reuse)
+        # cnn2 = self.cnn_layer(cnn1, "cnn2", [5, 1, 512, 1024])
 
         fc1 = self.fc_layer(tf.contrib.layers.flatten(cnn2, 'flatten_layer'), 256, "fc1", False)
         out = self.fc_layer(fc1, 128, "out", True)
@@ -45,14 +45,16 @@ class TripletNetwork:
         #     fc = tf.layers.dropout(tf.nn.tanh(fc), training=self.train)
         return fc
 
-    def cnn_layer(self, tensor, name, shape):
+    def cnn_layer(self, tensor, name, shape, reuse):
         conv_weights = tf.get_variable(name + "weight", shape,
                                        initializer=tf.truncated_normal_initializer(stddev=0.1))
         conv_biases = tf.get_variable(name + "bias", [shape[3]],
                                       initializer=tf.constant_initializer(0.0))
         conv = tf.nn.conv2d(tensor, conv_weights, strides=[1, 1, 1, 1], padding="VALID")
         tanh = tf.nn.tanh(tf.nn.bias_add(conv, conv_biases))
-        bn = tf.layers.batch_normalization(tanh, training=self.training, name=name)
+        # bn = tf.layers.batch_normalization(tanh, name=name, reuse=reuse, training=self.training)
+        bn, mean, var, beta, gamma = self.batch_norm(tanh, shape[-1], phase_train=self.training, scope="bn" + name,
+                                                     reuse=reuse)
         pool = tf.nn.max_pool(bn, ksize=[1, 2, 1, 1], strides=[1, 1, 1, 1], padding="VALID")
         return pool
 
@@ -70,3 +72,25 @@ class TripletNetwork:
         mean = tf.cast(tf.argmin(tf.stack([self.d_neg, self.d_pos], axis=1), axis=1),
                        dtype=tf.float32)
         return tf.reduce_mean(mean)
+
+    def batch_norm(self, x, n_out, phase_train, reuse, scope='bn'):
+        with tf.variable_scope(scope, reuse=reuse):
+            beta = tf.Variable(tf.constant(0.0, shape=[n_out]),
+                               name='beta', trainable=True)
+            gamma = tf.Variable(tf.constant(1.0, shape=[n_out]),
+                                name='gamma', trainable=True)
+
+            axis = list(range(len(x.shape) - 1))
+            batch_mean, batch_var = tf.nn.moments(x, axis, name='moments')
+            ema = tf.train.ExponentialMovingAverage(decay=0.5)
+
+            def mean_var_with_update():
+                ema_apply_op = ema.apply([batch_mean, batch_var])
+                with tf.control_dependencies([ema_apply_op]):
+                    return tf.identity(batch_mean), tf.identity(batch_var)
+
+            mean, var = tf.cond(phase_train,
+                                mean_var_with_update,
+                                lambda: (ema.average(batch_mean), ema.average(batch_var)))
+            normed = tf.nn.batch_normalization(x, mean, var, beta, gamma, 1e-3)
+        return normed, mean, var, beta, gamma
