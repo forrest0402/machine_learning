@@ -4,8 +4,9 @@
 @Date: 2018/9/5 下午4:59
 """
 
-import sys
 import os
+import sys
+
 import numpy as np
 import tensorflow as tf
 
@@ -51,14 +52,14 @@ if __name__ == '__main__':
         # test_data = test_data[0:2000, :]
         # print(test_data.shape)
 
-        test_data = make_dataset(train.test_file_name)
+        test_data = make_dataset(train.train_file_name)
         iterator = test_data.make_initializable_iterator()
         input_element = iterator.get_next()
 
         # read word embedding
         print("read read word embedding")
         id2vector = {index - 1: list(map(float, line.split(' ')[1:]))
-                     for index, line in enumerate(open(train.word2vec_file_name, 'r'))}
+                     for index, line in enumerate(open(train.word2vec_file_name, 'r', encoding="utf-8"))}
         id2vector[-1] = [0.0] * 256
         id2vector[-2] = [1.0] * 256
 
@@ -76,11 +77,13 @@ if __name__ == '__main__':
             ckpt = tf.train.get_checkpoint_state(train.model_save_path)
             if ckpt and ckpt.model_checkpoint_path:
                 saver.restore(sess, ckpt.model_checkpoint_path)
+                print("load model successfully")
                 accus = []
                 try:
                     step = 0
                     while True:
                         input = sess.run(input_element)
+                        print(input.shape)
                         x1, x2, x3 = converter.convert_input(input, id2vector)
                         accu = sess.run([model.accuracy],
                                         feed_dict={

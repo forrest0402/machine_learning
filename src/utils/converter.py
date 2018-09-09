@@ -24,11 +24,11 @@ def convert_input(input, id2vector):
     :param id2vector: [n, d] n words each word has d dimension
     :return:
     """
-    input1 = np.array(list(map(lambda x: str(x).split(' '), input[:, 0]))).astype(
+    input1 = np.array(list(map(lambda x: str(x, encoding="utf-8").split(' '), input[:, 0]))).astype(
         np.int32)
-    input2 = np.array(list(map(lambda x: str(x).split(' '), input[:, 1]))).astype(
+    input2 = np.array(list(map(lambda x: str(x, encoding='utf-8').split(' '), input[:, 1]))).astype(
         np.int32)
-    input3 = np.array(list(map(lambda x: str(x).split(' '), input[:, 2]))).astype(
+    input3 = np.array(list(map(lambda x: str(x, encoding='utf-8').split(' '), input[:, 2]))).astype(
         np.int32)
     x1 = np.array(get_ebedding(input1, id2vector))
     x2 = np.array(get_ebedding(input2, id2vector))

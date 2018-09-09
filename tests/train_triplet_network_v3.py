@@ -4,8 +4,9 @@
 @Date: 2018/8/30 下午1:59
 """
 
-import sys
 import os
+import sys
+
 import numpy as np
 import tensorflow as tf
 
@@ -41,7 +42,7 @@ def train():
         input_element = iterator.get_next()
 
         id2vector = {index - 1: list(map(float, line.split(' ')[1:]))
-                     for index, line in enumerate(open(word2vec_file_name, 'r'))}
+                     for index, line in enumerate(open(word2vec_file_name, 'r', encoding='utf-8'))}
         id2vector[-1] = [0.0] * 256
         id2vector[-2] = [1.0] * 256
 
