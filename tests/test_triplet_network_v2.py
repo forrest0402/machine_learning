@@ -68,7 +68,10 @@ if __name__ == '__main__':
         # print(x2.shape)
         # print(x3.shape)
         saver = tf.train.Saver()
-        with tf.Session() as sess:
+        tf_config = tf.ConfigProto()
+        tf_config.gpu_options.allow_growth = True
+        tf_config.allow_soft_placement = True
+        with tf.Session(config=tf_config) as sess:
 
             print("start to calculate accuracy")
             sess.run(iterator.initializer)

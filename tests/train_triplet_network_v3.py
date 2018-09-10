@@ -35,68 +35,76 @@ def train():
     :param train_data:
     :return:
     """
-    with tf.Graph().as_default() as g:
-        train_data = make_dataset(train_file_name)
-        iterator = train_data.make_initializable_iterator()
-        input_element = iterator.get_next()
+    train_data = make_dataset(train_file_name)
+    iterator = train_data.make_initializable_iterator()
+    input_element = iterator.get_next()
 
-        id2vector = {index - 1: list(map(float, line.split(' ')[1:]))
-                     for index, line in enumerate(open(word2vec_file_name, 'r'))}
-        id2vector[-1] = [0.0] * 256
-        id2vector[-2] = [1.0] * 256
+    id2vector = {index - 1: list(map(float, line.split(' ')[1:]))
+                 for index, line in enumerate(open(word2vec_file_name, 'r'))}
+    id2vector[-1] = [0.0] * 256
+    id2vector[-2] = [1.0] * 256
 
-        model = TripletNetwork(25, 256, train=True)
-        global_step = tf.Variable(0.0, trainable=False)
-        learning_rate = tf.train.exponential_decay(learning_rate=0.001, global_step=global_step,
-                                                   decay_steps=10000,
-                                                   decay_rate=0.95, staircase=True)
-        update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-        with tf.control_dependencies(update_ops):
-            train_op = tf.train.AdamOptimizer(learning_rate=learning_rate) \
-                .minimize(model.loss, global_step=global_step)
+    model = TripletNetwork(25, 256, train=True)
+    global_step = tf.Variable(0.0, trainable=False)
+    learning_rate = tf.train.exponential_decay(learning_rate=0.001, global_step=global_step,
+                                               decay_steps=10000,
+                                               decay_rate=0.95, staircase=True)
+    optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
+    update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+    with tf.control_dependencies(update_ops):
+        grads = optimizer.compute_gradients(model.loss)
+        train_op = optimizer.apply_gradients(grads, global_step=global_step)
 
-        tf_config = tf.ConfigProto()
-        tf_config.gpu_options.allow_growth = True
-        tf_config.allow_soft_placement = True
+    tf_config = tf.ConfigProto()
+    tf_config.gpu_options.allow_growth = True
+    tf_config.allow_soft_placement = True
 
-        saver = tf.train.Saver(max_to_keep=10)
-        with tf.Session(config=tf_config) as sess:
+    sess = tf.InteractiveSession(config=tf_config)
 
-            sess.run(iterator.initializer)
-            ckpt = tf.train.get_checkpoint_state(model_save_path)
-            if ckpt and ckpt.model_checkpoint_path:
-                print(ckpt.model_checkpoint_path)
-                saver.restore(sess, ckpt.model_checkpoint_path)
-            else:
-                sess.run((tf.global_variables_initializer(), tf.local_variables_initializer()))
+    var_list = tf.trainable_variables()
+    if global_step is not None:
+        var_list.append(global_step)
+    g_list = tf.global_variables()
+    bn_moving_vars = [g for g in g_list if 'moving_mean' in g.name]
+    bn_moving_vars += [g for g in g_list if 'moving_variance' in g.name]
+    var_list += bn_moving_vars
+    saver = tf.train.Saver(var_list=var_list, max_to_keep=5)
 
-            for epoch_num in range(EPOCH):
-                for step in range(int(FILE_LINE_NUM / BATCH_SIZE)):
+    sess.run(iterator.initializer)
+    ckpt = tf.train.get_checkpoint_state(model_save_path)
+    if ckpt and ckpt.model_checkpoint_path:
+        print(ckpt.model_checkpoint_path)
+        saver.restore(sess, ckpt.model_checkpoint_path)
+    else:
+        sess.run((tf.global_variables_initializer(), tf.local_variables_initializer()))
 
-                    input = sess.run(input_element)
-                    x1, x2, x3 = converter.convert_input(input, id2vector)
+    for epoch_num in range(EPOCH):
+        for step in range(int(FILE_LINE_NUM / BATCH_SIZE)):
 
-                    _, loss_v, accu, __ = sess.run(
-                        [train_op, model.loss, model.accuracy, global_step],
-                        feed_dict={
-                            model.anchor_input: x1,
-                            model.positive_input: x2,
-                            model.negative_input: x3})
+            input = sess.run(input_element)
+            x1, x2, x3 = converter.convert_input(input, id2vector)
 
-                    if step % 100 == 0:
-                        print("epoch {}, step {}/{}: loss {} accuracy {}"
-                              .format(epoch_num, step, int(FILE_LINE_NUM / BATCH_SIZE),
-                                      loss_v, accu))
-                        saver.save(sess, model_save_path + model_name, global_step=global_step)
+            _, loss_v, accu, __ = sess.run(
+                [train_op, model.loss, model.accuracy, global_step],
+                feed_dict={
+                    model.anchor_input: x1,
+                    model.positive_input: x2,
+                    model.negative_input: x3})
 
-                    if np.isnan(loss_v):
-                        print('Model diverged with loss = NaN')
-                        quit()
-
+            if step % 100 == 0:
+                print("epoch {}, step {}/{}: loss {} accuracy {}"
+                      .format(epoch_num, step, int(FILE_LINE_NUM / BATCH_SIZE),
+                              loss_v, accu))
                 saver.save(sess, model_save_path + model_name, global_step=global_step)
-                print('step %d: loss %.3f' % (step, loss_v))
 
-                # output_grap_def = tf.graph_util.convert_variables_to_constants(sess,sess.graph_def,output_node_names=[''])
+            if np.isnan(loss_v):
+                print('Model diverged with loss = NaN')
+                quit()
+
+        saver.save(sess, model_save_path + model_name, global_step=global_step)
+        print('step %d: loss %.3f' % (step, loss_v))
+
+    # output_grap_def = tf.graph_util.convert_variables_to_constants(sess,sess.graph_def,output_node_names=[''])
 
 
 def make_dataset(file_name):
