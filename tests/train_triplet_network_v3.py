@@ -18,7 +18,7 @@ from src.model.tripletnetwork_v3 import TripletNetwork
 
 BATCH_SIZE = 128
 EPOCH = 5
-BUFFER_SIZE = 1024
+BUFFER_SIZE = 8196
 FILE_LINE_NUM = 0
 ROOT_PATH = os.path.dirname(os.path.dirname(__file__))
 
@@ -44,11 +44,12 @@ def train():
     id2vector[-1] = [0.0] * 256
     id2vector[-2] = [1.0] * 256
 
-    model = TripletNetwork(25, 256, train=True)
+    model = TripletNetwork(25, 256)
     global_step = tf.Variable(0.0, trainable=False)
-    learning_rate = tf.train.exponential_decay(learning_rate=0.001, global_step=global_step,
-                                               decay_steps=10000,
-                                               decay_rate=0.95, staircase=True)
+    learning_rate = tf.train.exponential_decay(learning_rate=0.001,
+                                               global_step=global_step,
+                                               decay_steps=10000, decay_rate=0.7,
+                                               staircase=True)
     optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     with tf.control_dependencies(update_ops):
@@ -60,15 +61,7 @@ def train():
     tf_config.allow_soft_placement = True
 
     sess = tf.InteractiveSession(config=tf_config)
-
-    var_list = tf.trainable_variables()
-    if global_step is not None:
-        var_list.append(global_step)
-    g_list = tf.global_variables()
-    bn_moving_vars = [g for g in g_list if 'moving_mean' in g.name]
-    bn_moving_vars += [g for g in g_list if 'moving_variance' in g.name]
-    var_list += bn_moving_vars
-    saver = tf.train.Saver(var_list=var_list, max_to_keep=5)
+    saver = tf.train.Saver(max_to_keep=5)
 
     sess.run(iterator.initializer)
     ckpt = tf.train.get_checkpoint_state(model_save_path)
@@ -78,23 +71,28 @@ def train():
     else:
         sess.run((tf.global_variables_initializer(), tf.local_variables_initializer()))
 
-    for epoch_num in range(EPOCH):
-        for step in range(int(FILE_LINE_NUM / BATCH_SIZE)):
+    round_number = int(FILE_LINE_NUM / BATCH_SIZE)
+    for epoch_num in range(int(global_step.eval()) / round_number, EPOCH):
+        for step in range(int(global_step.eval()) % round_number, round_number):
 
             input = sess.run(input_element)
             x1, x2, x3 = converter.convert_input(input, id2vector)
 
             _, loss_v, accu, __ = sess.run(
-                [train_op, model.loss, model.accuracy, global_step],
-                feed_dict={
+                [train_op, model.loss, model.accuracy, global_step], feed_dict={
                     model.anchor_input: x1,
                     model.positive_input: x2,
-                    model.negative_input: x3})
+                    model.negative_input: x3,
+                    model.training: True})
 
-            if step % 100 == 0:
-                print("epoch {}, step {}/{}: loss {} accuracy {}"
-                      .format(epoch_num, step, int(FILE_LINE_NUM / BATCH_SIZE),
-                              loss_v, accu))
+            if step % 500 == 0:
+                test_accu = sess.run([model.accuracy], feed_dict={
+                    model.anchor_input: x1,
+                    model.positive_input: x2,
+                    model.negative_input: x3,
+                    model.training: False})
+                print("epoch {}, step {}/{}, loss {}, accuracy {}, test accuracy {}"
+                      .format(epoch_num, step, round_number, loss_v, accu, test_accu))
                 saver.save(sess, model_save_path + model_name, global_step=global_step)
 
             if np.isnan(loss_v):
@@ -102,7 +100,6 @@ def train():
                 quit()
 
         saver.save(sess, model_save_path + model_name, global_step=global_step)
-        print('step %d: loss %.3f' % (step, loss_v))
 
     # output_grap_def = tf.graph_util.convert_variables_to_constants(sess,sess.graph_def,output_node_names=[''])
 
