@@ -27,7 +27,8 @@ test_file_name = os.path.join(ROOT_PATH, 'data/test_tokenize.txt')
 word2vec_file_name = os.path.join(ROOT_PATH, 'data/model.vec')
 model_save_path = os.path.join(ROOT_PATH, 'model/')
 model_name = "triplet_network.ckpt"
-log_file = os.path.join(ROOT_PATH, 'log/triplet_network_v3')
+log_file = os.path.join(ROOT_PATH, 'log/triplet_network_v4')
+
 
 def train():
     """
@@ -45,7 +46,6 @@ def train():
     id2vector[-2] = [1.0] * 256
 
     model = TripletNetwork(25, 256)
-    print([x.name for x in tf.global_variables()])
 
     global_step = tf.Variable(0.0, trainable=False)
     learning_rate = tf.train.exponential_decay(learning_rate=0.001,
@@ -72,6 +72,10 @@ def train():
         saver.restore(sess, ckpt.model_checkpoint_path)
     else:
         sess.run((tf.global_variables_initializer(), tf.local_variables_initializer()))
+
+    print([x.name for x in tf.global_variables()])
+    write = tf.summary.FileWriter(log_file, tf.get_default_graph())
+    write.close()
 
     round_number = int(FILE_LINE_NUM / BATCH_SIZE)
     for epoch_num in range(int(global_step.eval()) / round_number, EPOCH):
