@@ -22,6 +22,8 @@ def get_embedding(word2idx, sentence):
     for term in sentence.split(' '):
         if term in word2idx:
             embedding.append(word2idx[term])
+        else:
+            embedding.append(-2)
     if len(embedding) > 25:
         embedding = embedding[:24]
     while len(embedding) < 25:

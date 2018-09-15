@@ -50,13 +50,12 @@ def train():
     global_step = tf.Variable(0.0, trainable=False)
     learning_rate = tf.train.exponential_decay(learning_rate=0.001,
                                                global_step=global_step,
-                                               decay_steps=10000, decay_rate=0.7,
+                                               decay_steps=10000, decay_rate=0.95,
                                                staircase=True)
     optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     with tf.control_dependencies(update_ops):
-        grads = optimizer.compute_gradients(model.loss)
-        train_op = optimizer.apply_gradients(grads, global_step=global_step)
+        train_op = optimizer.minimize(model.loss, global_step=global_step)
 
     tf_config = tf.ConfigProto()
     tf_config.gpu_options.allow_growth = True
@@ -92,13 +91,19 @@ def train():
                     model.training: True})
 
             if step % 500 == 0:
-                test_accu = sess.run([model.accuracy], feed_dict={
+                test_accu1 = sess.run([model.accuracy], feed_dict={
                     model.anchor_input: x1,
                     model.positive_input: x2,
                     model.negative_input: x3,
                     model.training: False})
-                print("epoch {}, step {}/{}, loss {}, accuracy {}, test accuracy {}"
-                      .format(epoch_num, step, round_number, loss_v, accu, test_accu))
+                test_accu2 = sess.run([model.accuracy], feed_dict={
+                    model.anchor_input: x1,
+                    model.positive_input: x2,
+                    model.negative_input: x3,
+                    model.training: True})
+
+                print("epoch {}, step {}/{}, loss {}, accuracy {}, test accuracy {}/{}"
+                      .format(epoch_num, step, round_number, loss_v, accu, test_accu1, test_accu2))
                 saver.save(sess, model_save_path + model_name, global_step=global_step)
 
             if np.isnan(loss_v):

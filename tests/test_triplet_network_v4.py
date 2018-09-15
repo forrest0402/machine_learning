@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 @Author: xiezizhe 
-@Date: 2018/9/5 下午4:59
+@Date: 2018/9/13 下午4:59
 """
 
 import sys
@@ -12,8 +12,8 @@ import tensorflow as tf
 sys.path.extend([os.path.dirname(os.path.dirname(__file__)), os.path.dirname(__file__)])
 
 import src.utils.converter as converter
-from src.model.tripletnetwork_v3 import TripletNetwork
-import train_triplet_network_v3 as train
+from src.model.tripletnetwork_v4 import TripletNetwork
+import train_triplet_network_v4 as train
 
 BATCH_SIZE = 128
 
@@ -74,10 +74,7 @@ if __name__ == '__main__':
                 write.close()
 
                 builder = tf.saved_model.builder.SavedModelBuilder("model/triplet_network")
-                builder.add_meta_graph_and_variables(
-                    sess,
-                    [tf.saved_model.tag_constants.SERVING]
-                )
+                builder.add_meta_graph_and_variables(sess, [tf.saved_model.tag_constants.SERVING])
                 builder.save()
 
                 accus = []
