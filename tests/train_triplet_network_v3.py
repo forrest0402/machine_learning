@@ -12,7 +12,7 @@ import tensorflow as tf
 
 sys.path.extend([os.path.dirname(os.path.dirname(__file__)), os.path.dirname(__file__)])
 
-import src.utils.converter as converter
+import src.utils.tripletnetwork_helper as converter
 from src.model.tripletnetwork_v3 import TripletNetwork
 
 # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -40,10 +40,7 @@ def train():
     iterator = train_data.make_initializable_iterator()
     input_element = iterator.get_next()
 
-    id2vector = {index - 1: list(map(float, line.split(' ')[1:]))
-                 for index, line in enumerate(open(word2vec_file_name, 'r', encoding='utf-8'))}
-    id2vector[-1] = [0.0] * 256
-    id2vector[-2] = [1.0] * 256
+    id2vector = converter.get_id_vector()
 
     model = TripletNetwork(25, 256)
     global_step = tf.Variable(0.0, trainable=False)

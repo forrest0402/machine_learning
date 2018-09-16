@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
+
 import tensorflow as tf
+
+FILTER_SIZES = [2, 3, 5, 7]
+FILTER_DEPTH = 512
 
 
 class TripletNetwork:
@@ -16,15 +20,16 @@ class TripletNetwork:
         self.negative_input = tf.placeholder(tf.float32, [None, length, embedding_size],
                                              name="negative_input")
         self.training = tf.placeholder(tf.bool, name="training")
-        with tf.variable_scope("triplet"):
-            self.positive_output = self.network(self.positive_input, reuse=None)
-            self.anchor_output = self.network(self.anchor_input, reuse=True)
-            self.negative_output = self.network(self.negative_input, reuse=True)
 
-        with tf.name_scope("negative_cosine_distance"):
-            self.d_pos = self.cosine(self.anchor_output, self.positive_output)
+        with tf.variable_scope("triplet"):
+            self.positive_output = self.network(self.positive_input, embedding_size, reuse=None)
+            self.anchor_output = self.network(self.anchor_input, embedding_size, reuse=True)
+            self.negative_output = self.network(self.negative_input, embedding_size, reuse=True)
 
         with tf.name_scope("positive_cosine_distance"):
+            self.d_pos = self.cosine(self.anchor_output, self.positive_output)
+
+        with tf.name_scope("negative_cosine_distance"):
             self.d_neg = self.cosine(self.anchor_output, self.negative_output)
 
         with tf.name_scope("loss"):
@@ -33,23 +38,30 @@ class TripletNetwork:
         with tf.name_scope("accuracy"):
             self.accuracy = self.cal_accu()
 
-    def network(self, x, reuse=True):
-        cnn1 = tf.layers.conv2d(tf.expand_dims(x, -1), filters=256, kernel_size=[3, 256],
-                                padding="VALID", activation=tf.nn.tanh, name="cnn1", reuse=reuse)
-        # bn1 = tf.layers.batch_normalization(cnn1, name="bn1", reuse=reuse, training=self.training)
+    def network(self, x, embedding_size, reuse=True):
+        filter_list = []
+        for i, filter_size in enumerate(FILTER_SIZES):
+            with tf.variable_scope("layer{}".format(i)):
+                cnn = tf.layers.conv2d(tf.expand_dims(x, -1), filters=FILTER_DEPTH,
+                                       kernel_size=[filter_size, embedding_size],
+                                       activation=tf.nn.tanh, reuse=reuse,
+                                       use_bias=False, name="cnn")
+                # pool = tf.layers.max_pooling2d(cnn, [int(math.ceil(cnn.shape[1].value / 2)), 1],
+                #                                [int(math.ceil(cnn.shape[1].value / 2)), 1],
+                #                                name="pool{}".format(i), padding="SAME")
+                pool = tf.layers.max_pooling2d(cnn, [cnn.shape[1].value, cnn.shape[2].value], [1, 1], name="pool")
+                bn = tf.layers.batch_normalization(pool, name="bn", reuse=reuse, training=self.training)
+                filter_list.append(bn)
 
-        cnn2 = tf.layers.conv2d(cnn1, filters=512, kernel_size=[5, 1],
-                                padding="VALID", activation=tf.nn.tanh, name="cnn2", reuse=reuse)
-        # bn2 = tf.layers.batch_normalization(cnn2, name="bn2", reuse=reuse, training=self.training)
+                if not reuse:
+                    print("cnn: {} pool: {}".format(cnn.shape, pool.shape))
 
-        flattern = tf.layers.flatten(cnn2, 'flatten_layer')
+        flatten = tf.layers.flatten(tf.concat(filter_list, axis=3), 'flatten_layer')
+        print("flatten shape: {}".format(flatten.shape))
+        fcl1 = tf.layers.dense(flatten, 256, name="fcl1", activation=tf.nn.tanh, reuse=reuse)
+        fcl1 = tf.layers.dropout(fcl1, training=self.training, name="dropout")
 
-        fcl1 = tf.layers.dense(flattern, 256, name="fcl1", activation=tf.nn.tanh, reuse=reuse)
-        fcl1 = tf.layers.dropout(fcl1, training=self.training)
-
-        out = tf.layers.dense(fcl1, 128, name="output", activation=tf.nn.tanh, reuse=reuse)
-        # print("{}->{}->{}->{}->{}->{}".format(cnn1.name, bn1.name, cnn2.name, bn2.name, fcl1.name, out.name))
-        print("{}->{}->{}->{}".format(cnn1.name, cnn2.name, fcl1.name, out.name))
+        out = tf.layers.dense(fcl1, 128, name="output", reuse=reuse)
         return out
 
     def cosine(self, vec1, vec2):

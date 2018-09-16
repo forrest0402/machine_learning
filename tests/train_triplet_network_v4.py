@@ -12,7 +12,7 @@ import tensorflow as tf
 
 sys.path.extend([os.path.dirname(os.path.dirname(__file__)), os.path.dirname(__file__)])
 
-import src.utils.converter as converter
+import src.utils.tripletnetwork_helper as helper
 from src.model.tripletnetwork_v4 import TripletNetwork
 
 # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -29,6 +29,7 @@ word2vec_file_name = os.path.join(ROOT_PATH, 'data/model.vec')
 model_save_path = os.path.join(ROOT_PATH, 'model/')
 model_name = "triplet_network.ckpt"
 log_file = os.path.join(ROOT_PATH, 'log/triplet_network_v4')
+loss_file = os.path.join(ROOT_PATH, 'loss/loss.txt')
 
 
 def train():
@@ -41,23 +42,19 @@ def train():
     iterator = train_data.make_initializable_iterator()
     input_element = iterator.get_next()
 
-    id2vector = {index - 1: list(map(float, line.split(' ')[1:]))
-                 for index, line in enumerate(open(word2vec_file_name, 'r', encoding="utf8"))}
-    id2vector[-1] = [0.0] * 256
-    id2vector[-2] = [1.0] * 256
+    id2vector = helper.get_id_vector()
 
     model = TripletNetwork(25, 256)
 
     global_step = tf.Variable(0.0, trainable=False)
     learning_rate = tf.train.exponential_decay(learning_rate=0.001,
                                                global_step=global_step,
-                                               decay_steps=10000, decay_rate=0.7,
+                                               decay_steps=10000, decay_rate=0.9,
                                                staircase=True)
     optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     with tf.control_dependencies(update_ops):
-        grads = optimizer.compute_gradients(model.loss)
-        train_op = optimizer.apply_gradients(grads, global_step=global_step)
+        train_op = optimizer.minimize(model.loss, global_step=global_step)
 
     tf_config = tf.ConfigProto()
     tf_config.gpu_options.allow_growth = True
@@ -75,15 +72,17 @@ def train():
         sess.run((tf.global_variables_initializer(), tf.local_variables_initializer()))
 
     print([x.name for x in tf.global_variables()])
-    writer = tf.summary.FileWriter(log_file, tf.get_default_graph())
-    writer.close()
+    write = tf.summary.FileWriter(log_file, tf.get_default_graph())
+    write.close()
 
     round_number = int(FILE_LINE_NUM / BATCH_SIZE)
     for epoch_num in range(int(global_step.eval()) // round_number, EPOCH):
+        accus = []
+        test_accus = []
         for step in range(int(global_step.eval()) % round_number, round_number):
 
             input = sess.run(input_element)
-            x1, x2, x3 = converter.convert_input(input, id2vector)
+            x1, x2, x3 = helper.convert_input(input, id2vector)
 
             _, loss_v, accu, __ = sess.run(
                 [train_op, model.loss, model.accuracy, global_step], feed_dict={
@@ -92,15 +91,27 @@ def train():
                     model.negative_input: x3,
                     model.training: True})
 
-            if step % 500 == 0:
-                test_accu = sess.run([model.accuracy], feed_dict={
+            accus.append(accu)
+            if step % 600 == 0:
+                test_accu1 = sess.run([model.accuracy], feed_dict={
                     model.anchor_input: x1,
                     model.positive_input: x2,
                     model.negative_input: x3,
                     model.training: False})
-                print("epoch {}, step {}/{}, loss {}, accuracy {}, test accuracy {}"
-                      .format(epoch_num, step, round_number, loss_v, accu, test_accu))
+                test_accu2 = sess.run([model.accuracy], feed_dict={
+                    model.anchor_input: x1,
+                    model.positive_input: x2,
+                    model.negative_input: x3,
+                    model.training: True})
+
+                test_accus.append(test_accu1)
+
+                print("epoch {}, step {}/{}, loss {}, accuracy {}, test accuracy {}/{}, mean accu {}/{}"
+                      .format(epoch_num, step, round_number, loss_v, accu, test_accu1, test_accu2,
+                              np.mean(accus), np.mean(test_accus)))
                 saver.save(sess, model_save_path + model_name, global_step=global_step)
+
+                helper.write_loss(loss_file, loss=loss_v)
 
             if np.isnan(loss_v):
                 print('Model diverged with loss = NaN')

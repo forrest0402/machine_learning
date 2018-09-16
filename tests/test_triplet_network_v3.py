@@ -12,7 +12,7 @@ import tensorflow as tf
 
 sys.path.extend([os.path.dirname(os.path.dirname(__file__)), os.path.dirname(__file__)])
 
-import src.utils.converter as converter
+import src.utils.tripletnetwork_helper as converter
 from src.model.tripletnetwork_v3 import TripletNetwork
 import train_triplet_network_v3 as train
 
@@ -50,11 +50,7 @@ if __name__ == '__main__':
         input_element = iterator.get_next()
 
         # read word embedding
-        print("read read word embedding")
-        id2vector = {index - 1: list(map(float, line.split(' ')[1:]))
-                     for index, line in enumerate(open(train.word2vec_file_name, 'r', encoding="utf-8"))}
-        id2vector[-1] = [0.0] * 256
-        id2vector[-2] = [1.0] * 256
+        id2vector = converter.get_id_vector()
 
         saver = tf.train.Saver()
         with tf.Session() as sess:

@@ -4,14 +4,15 @@
 @Date: 2018/8/30 下午1:59
 """
 
-import sys
 import os
+import sys
+
 import numpy as np
 import tensorflow as tf
 
 sys.path.extend([os.path.dirname(os.path.dirname(__file__)), os.path.dirname(__file__)])
 
-import src.utils.converter as converter
+import src.utils.tripletnetwork_helper as converter
 from src.model.tripletnetwork_v2 import TripletNetwork
 
 # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -40,20 +41,18 @@ def train():
         iterator = train_data.make_initializable_iterator()
         input_element = iterator.get_next()
 
-        id2vector = {index - 1: list(map(float, line.split(' ')[1:]))
-                     for index, line in enumerate(open(word2vec_file_name, 'r'))}
-        id2vector[-1] = [0.0] * 256
-        id2vector[-2] = [1.0] * 256
+        id2vector = converter.get_id_vector()
 
         model = TripletNetwork(25, 256)
         global_step = tf.Variable(0.0, trainable=False)
         train_step = tf.train.AdamOptimizer(0.001).minimize(model.loss)
 
-        sess_conf = tf.ConfigProto(allow_soft_placement=True, log_device_placement=True)
+        # log_device_placement=True
+        sess_conf = tf.ConfigProto(allow_soft_placement=True)
         sess_conf.gpu_options.allow_growth = True
 
         saver = tf.train.Saver()
-        with tf.Session() as sess:
+        with tf.Session(config=sess_conf) as sess:
 
             sess.run(iterator.initializer)
             # if os.path.exists(model_save_path + model_name + '.meta'):

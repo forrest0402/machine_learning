@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-import random
 import os
-from itertools import combinations
 
 """
 将之前dssm需要的训练数据转化成triplet_network的需要的数据输入格式
@@ -22,6 +20,8 @@ def get_embedding(word2idx, sentence):
     for term in sentence.split(' '):
         if term in word2idx:
             embedding.append(word2idx[term])
+        else:
+            embedding.append(-2)
     if len(embedding) > 25:
         embedding = embedding[:24]
     while len(embedding) < 25:
@@ -37,14 +37,14 @@ def tokenize_embedding(output_file_name):
 
     word2idx = dict()
     total_num = 0
-    for index, line in enumerate(open('model.vec', 'r')):
+    for index, line in enumerate(open('model.vec', 'r', encoding="utf-8")):
         word_embedding = line.split(' ')
         total_num += 1
         if len(word_embedding) >= 256:
             word2idx[word_embedding[0]] = index - 1
     print("{} lines in total".format(total_num))
-    with open(output_file_name, "r") as fr:
-        with open(output_file_name.replace(".txt", "_tokenize.txt"), 'w') as fw:
+    with open(output_file_name, "r", encoding="utf-8") as fr:
+        with open(output_file_name.replace(".txt", "_tokenize.txt"), 'w', encoding="utf-8") as fw:
             for index, line in enumerate(fr.readlines()):
                 if index % 300000 == 0:
                     print("read {} lines".format(index))

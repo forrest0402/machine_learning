@@ -14,3 +14,5 @@ src/mnist/model/
 src/temp.py
 *.pyc
 temp/
+traindata/
+out/
