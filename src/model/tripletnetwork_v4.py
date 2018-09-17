@@ -3,7 +3,7 @@
 import tensorflow as tf
 
 FILTER_SIZES = [2, 3, 5, 7]
-FILTER_DEPTH = 512
+FILTER_DEPTH = 1024
 
 
 class TripletNetwork:
@@ -22,9 +22,9 @@ class TripletNetwork:
         self.training = tf.placeholder(tf.bool, name="training")
 
         with tf.variable_scope("triplet"):
-            self.positive_output = self.network(self.positive_input, embedding_size, reuse=None)
-            self.anchor_output = self.network(self.anchor_input, embedding_size, reuse=True)
-            self.negative_output = self.network(self.negative_input, embedding_size, reuse=True)
+            self.positive_output, self.regularization = self.network(self.positive_input, embedding_size, reuse=None)
+            self.anchor_output, _ = self.network(self.anchor_input, embedding_size, reuse=True)
+            self.negative_output, _ = self.network(self.negative_input, embedding_size, reuse=True)
 
         with tf.name_scope("positive_cosine_distance"):
             self.d_pos = self.cosine(self.anchor_output, self.positive_output)
@@ -33,7 +33,7 @@ class TripletNetwork:
             self.d_neg = self.cosine(self.anchor_output, self.negative_output)
 
         with tf.name_scope("loss"):
-            self.loss = self.cal_loss()
+            self.loss = self.cal_loss() + self.regularization * 1e-3
 
         with tf.name_scope("accuracy"):
             self.accuracy = self.cal_accu()
@@ -62,12 +62,22 @@ class TripletNetwork:
         fcl1 = tf.layers.dropout(fcl1, training=self.training, name="dropout")
 
         out = tf.layers.dense(fcl1, 128, name="output", reuse=reuse)
-        return out
+        return out, tf.nn.l2_loss(fcl1)
+
+    def l1norm(self, vec1, vec2):
+        return tf.reduce_sum(tf.abs(tf.subtract(vec1, vec2)), axis=1)
 
     def cosine(self, vec1, vec2):
         p = tf.reduce_sum(tf.multiply(vec1, vec2), axis=1)
         return p / tf.multiply(tf.sqrt(tf.reduce_sum(tf.square(vec1), 1)),
                                tf.sqrt(tf.reduce_sum(tf.square(vec2), 1)))
+
+    def cal_loss_l1(self):
+        margin = 0.2
+        pos_dist = self.l1norm(self.anchor_output, self.positive_output)
+        neg_dist = self.l1norm(self.anchor_output, self.negative_output)
+        loss = tf.maximum(0.0, margin + pos_dist - neg_dist)
+        return tf.reduce_mean(loss)
 
     def cal_loss(self):
         margin = 0.2

@@ -16,7 +16,7 @@ import src.utils.tripletnetwork_helper as helper
 from src.model.tripletnetwork_v4 import TripletNetwork
 import train_triplet_network_v4 as train
 
-BATCH_SIZE = 128
+BATCH_SIZE = 1024
 
 
 def make_dataset(file_name):

@@ -10,13 +10,12 @@ VERSION = sys.version.split(" ")[0]
 ROOT_PATH = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 
 if __name__ == '__main__':
-    file_name = ROOT_PATH + "/out"
+    file_name = ROOT_PATH + "/loss/loss.txt"
     x = []
     if control.high_version():
         with open(file_name, 'r', encoding="utf-8") as fr:
             for line in fr.readlines():
-                if "epoch" in line and "loss" in line and "accuracy" in line:
-                    x.append(float(line.split(",")[2].split(" ")[2]))
+                x.append(float(line.replace("\n", "")))
     else:
         with open(file_name, 'r') as fr:
             for line in fr.readlines():
