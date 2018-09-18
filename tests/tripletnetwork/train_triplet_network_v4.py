@@ -10,7 +10,8 @@ import sys
 import numpy as np
 import tensorflow as tf
 
-sys.path.extend([os.path.dirname(os.path.dirname(__file__)), os.path.dirname(__file__)])
+sys.path.extend([os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                 os.path.dirname(os.path.dirname(__file__)), os.path.dirname(__file__)])
 
 import src.utils.tripletnetwork_helper as helper
 from src.model.tripletnetwork_v4 import TripletNetwork
@@ -21,7 +22,7 @@ BATCH_SIZE = 128
 EPOCH = 5
 BUFFER_SIZE = 8196
 FILE_LINE_NUM = 0
-ROOT_PATH = os.path.dirname(os.path.dirname(__file__))
+ROOT_PATH = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 
 train_file_name = os.path.join(ROOT_PATH, 'data/train_tokenize.txt')
 test_file_name = os.path.join(ROOT_PATH, 'data/test_tokenize.txt')
@@ -106,9 +107,10 @@ def train():
 
                 test_accus.append(test_accu1)
 
-                print("epoch {}, step {}/{}, loss {}, accuracy {}, test accuracy {}/{}, mean accu {}/{}"
-                      .format(epoch_num, step, round_number, loss_v, accu, test_accu1, test_accu2,
-                              np.mean(accus), np.mean(test_accus)))
+                print(
+                    "epoch {}, step {}/{}, loss {}, accuracy {}, test accuracy {}/{}, mean accu {}/{}"
+                        .format(epoch_num, step, round_number, loss_v, accu, test_accu1, test_accu2,
+                                np.mean(accus), np.mean(test_accus)))
                 saver.save(sess, model_save_path + model_name, global_step=global_step)
 
                 helper.write_loss(loss_file, loss=loss_v)

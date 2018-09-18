@@ -22,15 +22,16 @@ class TripletNetwork:
         self.training = tf.placeholder(tf.bool, name="training")
 
         with tf.variable_scope("triplet"):
-            self.positive_output, self.regularization = self.network(self.positive_input, embedding_size, reuse=None)
+            self.positive_output, self.regularization = self.network(self.positive_input,
+                                                                     embedding_size, reuse=None)
             self.anchor_output, _ = self.network(self.anchor_input, embedding_size, reuse=True)
             self.negative_output, _ = self.network(self.negative_input, embedding_size, reuse=True)
 
         with tf.name_scope("positive_cosine_distance"):
-            self.d_pos = self.cosine(self.anchor_output, self.positive_output)
+            self.positive_sim = self.cosine(self.anchor_output, self.positive_output)
 
         with tf.name_scope("negative_cosine_distance"):
-            self.d_neg = self.cosine(self.anchor_output, self.negative_output)
+            self.negative_sim = self.cosine(self.anchor_output, self.negative_output)
 
         with tf.name_scope("loss"):
             self.loss = self.cal_loss() + self.regularization * 1e-3
@@ -49,8 +50,10 @@ class TripletNetwork:
                 # pool = tf.layers.max_pooling2d(cnn, [int(math.ceil(cnn.shape[1].value / 2)), 1],
                 #                                [int(math.ceil(cnn.shape[1].value / 2)), 1],
                 #                                name="pool{}".format(i), padding="SAME")
-                pool = tf.layers.max_pooling2d(cnn, [cnn.shape[1].value, cnn.shape[2].value], [1, 1], name="pool")
-                bn = tf.layers.batch_normalization(pool, name="bn", reuse=reuse, training=self.training)
+                pool = tf.layers.max_pooling2d(cnn, [cnn.shape[1].value, cnn.shape[2].value],
+                                               [1, 1], name="pool")
+                bn = tf.layers.batch_normalization(pool, name="bn", reuse=reuse,
+                                                   training=self.training)
                 filter_list.append(bn)
 
                 if not reuse:
@@ -81,10 +84,10 @@ class TripletNetwork:
 
     def cal_loss(self):
         margin = 0.2
-        loss = tf.maximum(0.0, margin + self.d_pos - self.d_neg)
+        loss = tf.maximum(0.0, margin - self.positive_sim + self.negative_sim)
         return tf.reduce_mean(loss)
 
     def cal_accu(self):
-        mean = tf.cast(tf.argmin(tf.stack([self.d_neg, self.d_pos], axis=1), axis=1),
+        mean = tf.cast(tf.argmax(tf.stack([self.negative_sim, self.positive_sim], axis=1), axis=1),
                        dtype=tf.float32)
         return tf.reduce_mean(mean)
