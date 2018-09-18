@@ -2,7 +2,7 @@
 
 import tensorflow as tf
 
-FILTER_SIZES = [2, 3, 5, 7]
+FILTER_SIZES = [2, 3, 3, 5, 5, 7]
 FILTER_DEPTH = 1024
 
 

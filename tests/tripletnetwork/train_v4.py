@@ -73,8 +73,13 @@ def train():
         sess.run((tf.global_variables_initializer(), tf.local_variables_initializer()))
 
     print([x.name for x in tf.global_variables()])
+
     write = tf.summary.FileWriter(log_file, tf.get_default_graph())
     write.close()
+
+    if os.path.isfile(log_file):
+        os.remove(log_file)
+        print("delete {}".format(log_file))
 
     round_number = int(FILE_LINE_NUM / BATCH_SIZE)
     for epoch_num in range(int(global_step.eval()) // round_number, EPOCH):
@@ -109,8 +114,8 @@ def train():
 
                 print(
                     "epoch {}, step {}/{}, loss {}, accuracy {}, test accuracy {}/{}, mean accu {}/{}"
-                    .format(epoch_num, step, round_number, loss_v, accu, test_accu1, test_accu2,
-                            np.mean(accus), np.mean(test_accus)))
+                        .format(epoch_num, step, round_number, loss_v, accu, test_accu1, test_accu2,
+                                np.mean(accus), np.mean(test_accus)))
                 saver.save(sess, model_save_path + model_name, global_step=global_step)
 
                 helper.write_loss(loss_file, loss=loss_v)
