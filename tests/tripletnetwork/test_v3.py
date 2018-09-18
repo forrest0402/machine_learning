@@ -13,10 +13,10 @@ import tensorflow as tf
 sys.path.extend([os.path.dirname(os.path.dirname(__file__)), os.path.dirname(__file__)])
 
 import src.utils.tripletnetwork_helper as converter
-from src.model.tripletnetwork_v2 import TripletNetwork
-import train_triplet_network_v2 as train
+from src.model.tripletnetwork_v3 import TripletNetwork
+import train_v3 as train
 
-BATCH_SIZE = 128
+BATCH_SIZE = 8192
 
 
 def make_dataset(file_name):
@@ -44,35 +44,16 @@ if __name__ == '__main__':
         model = TripletNetwork(25, 256)
 
         # read test file
-        print("read test file")
-        # test_data = []
-        # with open(train.test_file_name, 'r') as fr:
-        #     test_data = np.array([line.split('\t') for line in fr.readlines()], dtype=np.string_)
-        #
-        # test_data = test_data[0:2000, :]
-        # print(test_data.shape)
-
+        print("read test file - {}".format(train.test_file_name))
         test_data = make_dataset(train.test_file_name)
         iterator = test_data.make_initializable_iterator()
         input_element = iterator.get_next()
 
         # read word embedding
-        print("read read word embedding")
-        id2vector = {index - 1: list(map(float, line.split(' ')[1:]))
-                     for index, line in enumerate(open(train.word2vec_file_name, 'r', encoding="utf-8"))}
-        id2vector[-1] = [1.0] * 256
-        id2vector[-2] = [0.0] * 256
+        id2vector = converter.get_id_vector()
 
-        # print("start to construct inputs")
-        # x1, x2, x3 = converter.convert_input(test_data, id2vector)
-        # print(x1.shape)
-        # print(x2.shape)
-        # print(x3.shape)
         saver = tf.train.Saver()
-        tf_config = tf.ConfigProto()
-        tf_config.gpu_options.allow_growth = True
-        tf_config.allow_soft_placement = True
-        with tf.Session(config=tf_config) as sess:
+        with tf.Session() as sess:
 
             print("start to calculate accuracy")
             sess.run(iterator.initializer)
@@ -80,6 +61,7 @@ if __name__ == '__main__':
             ckpt = tf.train.get_checkpoint_state(train.model_save_path)
             if ckpt and ckpt.model_checkpoint_path:
                 saver.restore(sess, ckpt.model_checkpoint_path)
+                print("load model successfully - {}".format(ckpt.model_checkpoint_path))
                 accus = []
                 try:
                     step = 0
@@ -90,7 +72,8 @@ if __name__ == '__main__':
                                         feed_dict={
                                             model.anchor_input: x1,
                                             model.positive_input: x2,
-                                            model.negative_input: x3})
+                                            model.negative_input: x3,
+                                            model.training: False})
                         accus.append(accu)
                         print("{}/{},\taccu {}, average accuracy: {}".format(step * BATCH_SIZE,
                                                                              file_line_num, accu,

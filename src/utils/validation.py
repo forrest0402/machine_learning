@@ -4,7 +4,7 @@
 @Author: xiezizhe
 @Date: 2018/9/6 下午5:17
 """
-from tripletnetwork import train_triplet_network_v3 as train
+from tripletnetwork import train_v3 as train
 
 
 def validate(file_name):

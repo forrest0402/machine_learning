@@ -13,7 +13,7 @@ import tensorflow as tf
 sys.path.extend([os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
                  os.path.dirname(os.path.dirname(__file__)), os.path.dirname(__file__)])
 
-import src.utils.tripletnetwork_helper as helper
+import tripletnetwork_helper as helper
 from src.model.tripletnetwork_v4 import TripletNetwork
 
 # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -109,8 +109,8 @@ def train():
 
                 print(
                     "epoch {}, step {}/{}, loss {}, accuracy {}, test accuracy {}/{}, mean accu {}/{}"
-                        .format(epoch_num, step, round_number, loss_v, accu, test_accu1, test_accu2,
-                                np.mean(accus), np.mean(test_accus)))
+                    .format(epoch_num, step, round_number, loss_v, accu, test_accu1, test_accu2,
+                            np.mean(accus), np.mean(test_accus)))
                 saver.save(sess, model_save_path + model_name, global_step=global_step)
 
                 helper.write_loss(loss_file, loss=loss_v)

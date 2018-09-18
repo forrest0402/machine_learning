@@ -108,5 +108,5 @@ def write_loss(file_name, loss):
             f.write('\n')
     else:
         with open(file_name, 'a') as f:
-            f.write(loss)
+            f.write(str(loss))
             f.write('\n')
