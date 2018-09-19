@@ -13,7 +13,7 @@ import tensorflow as tf
 sys.path.extend([os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
                  os.path.dirname(os.path.dirname(__file__)), os.path.dirname(__file__)])
 
-import tripletnetwork_helper as helper
+import src.utils.tripletnetwork_helper as helper
 from src.model.tripletnetwork_v4 import TripletNetwork
 
 # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'

@@ -83,7 +83,7 @@ class TripletNetwork:
         return tf.reduce_mean(loss)
 
     def cal_loss(self):
-        margin = 0.2
+        margin = 0.02
         loss = tf.maximum(0.0, margin - self.positive_sim + self.negative_sim)
         return tf.reduce_mean(loss)
 

@@ -91,6 +91,7 @@ def write_to_log(file_name, summary_writer, graph, ):
     write = summary_writer(file_name, graph)
     write.close()
 
+
 def write_loss(file_name, loss):
     """
 
@@ -101,8 +102,10 @@ def write_loss(file_name, loss):
     Returns:
 
     """
-    if not os.path.exists(file_name):
-        os.mkdir(file_name)
+    path = os.path.split(file_name)
+    if not os.path.exists(path):
+        os.mkdir(path)
+        os.system("touch {}".format(file_name))
 
     if control.high_version():
         with open(file_name, 'a', encoding="utf-8") as f:
