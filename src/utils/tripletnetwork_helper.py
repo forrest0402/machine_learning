@@ -102,7 +102,7 @@ def write_loss(file_name, loss):
     Returns:
 
     """
-    path = os.path.split(file_name)[1]
+    path = os.path.split(file_name)[0]
     if not os.path.exists(path):
         os.mkdir(path)
         os.system("touch {}".format(file_name))
