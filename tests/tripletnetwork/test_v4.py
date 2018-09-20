@@ -10,7 +10,8 @@ import sys
 import numpy as np
 import tensorflow as tf
 
-sys.path.extend([os.path.dirname(os.path.dirname(__file__)), os.path.dirname(__file__)])
+sys.path.extend([os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                 os.path.dirname(os.path.dirname(__file__)), os.path.dirname(__file__)])
 
 import src.utils.tripletnetwork_helper as helper
 from src.model.tripletnetwork_v4 import TripletNetwork
