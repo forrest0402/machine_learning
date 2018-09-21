@@ -16,13 +16,15 @@ sys.path.extend([os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
 import src.utils.tripletnetwork_helper as helper
 from src.model.tripletnetwork_dssm import TripletNetwork
 
-# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-
-BATCH_SIZE = 128
-EPOCH = 5
-BUFFER_SIZE = 8196
-FILE_LINE_NUM = 0
 ROOT_PATH = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+
+TRAIN_BATCH_SIZE = 128
+EPOCH = 5
+TRAIN_BUFFER_SIZE = 8196
+TRAIN_FILE_LINE_NUM = 0
+
+TEST_BATCH_SIZE = 1024
+TEST_FILE_LINE_NUM = 0
 
 train_file_name = os.path.join(ROOT_PATH, 'data/train_tokenize.txt')
 test_file_name = os.path.join(ROOT_PATH, 'data/test_tokenize.txt')
@@ -36,12 +38,15 @@ loss_file = os.path.join(ROOT_PATH, 'loss_dssm/loss.txt')
 def train():
     """
 
-    :param train_data:
     :return:
     """
-    train_data = make_dataset(train_file_name)
-    iterator = train_data.make_initializable_iterator()
-    input_element = iterator.get_next()
+    train_data = make_dataset(train_file_name, TRAIN_BUFFER_SIZE, TRAIN_BATCH_SIZE, EPOCH)
+    train_iterator = train_data.make_initializable_iterator()
+    train_input_element = train_iterator.get_next()
+
+    test_data = make_dataset(test_file_name, TEST_BATCH_SIZE, TEST_BATCH_SIZE, EPOCH)
+    test_iterator = test_data.make_initializable_iterator()
+    test_input_element = test_iterator.get_next()
 
     id2vector = helper.get_id_vector()
 
@@ -53,6 +58,8 @@ def train():
                                                decay_steps=10000, decay_rate=0.9,
                                                staircase=True)
     optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
+
+    # batch normalization need this op to update its variables
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     with tf.control_dependencies(update_ops):
         train_op = optimizer.minimize(model.loss, global_step=global_step)
@@ -64,16 +71,20 @@ def train():
     sess = tf.InteractiveSession(config=tf_config)
     saver = tf.train.Saver(max_to_keep=5)
 
-    sess.run(iterator.initializer)
+    sess.run(train_iterator.initializer)
+    sess.run(test_iterator.initializer)
+
+    # try to load existing model
     ckpt = tf.train.get_checkpoint_state(model_save_path)
     if ckpt and ckpt.model_checkpoint_path:
-        print(ckpt.model_checkpoint_path)
+        print("load model from {}".format(ckpt.model_checkpoint_path))
         saver.restore(sess, ckpt.model_checkpoint_path)
     else:
         sess.run((tf.global_variables_initializer(), tf.local_variables_initializer()))
 
     print([x.name for x in tf.global_variables()])
 
+    # write graph for tensorboard
     write = tf.summary.FileWriter(log_file, tf.get_default_graph())
     write.close()
 
@@ -81,13 +92,13 @@ def train():
         os.remove(log_file)
         print("delete {}".format(log_file))
 
-    round_number = int(FILE_LINE_NUM / BATCH_SIZE)
+    round_number = int(TRAIN_FILE_LINE_NUM / TRAIN_BATCH_SIZE)
     for epoch_num in range(int(global_step.eval()) // round_number, EPOCH):
         accus = []
         test_accus = []
         for step in range(int(global_step.eval()) % round_number, round_number):
 
-            input = sess.run(input_element)
+            input = sess.run(train_input_element)
             x1, x2, x3 = helper.convert_input(input, id2vector)
 
             _, loss_v, accu, __ = sess.run(
@@ -99,23 +110,18 @@ def train():
 
             accus.append(accu)
             if step % 600 == 0:
-                test_accu1 = sess.run([model.accuracy], feed_dict={
+                test_accu = sess.run([model.accuracy], feed_dict={
                     model.anchor_input: x1,
                     model.positive_input: x2,
                     model.negative_input: x3,
                     model.training: False})
-                test_accu2 = sess.run([model.accuracy], feed_dict={
-                    model.anchor_input: x1,
-                    model.positive_input: x2,
-                    model.negative_input: x3,
-                    model.training: True})
 
-                test_accus.append(test_accu1)
+                test_accus.append(test_accu)
 
-                print(
-                    "epoch {}, step {}/{}, loss {}, accuracy {}, test accuracy {}/{}, mean accu {}/{}"
-                        .format(epoch_num, step, round_number, loss_v, accu, test_accu1, test_accu2,
-                                np.mean(accus), np.mean(test_accus)))
+                print("epoch {}, step {}/{}, loss {}, accuracy {}, test accuracy {}, mean accu {}/{}"
+                      .format(epoch_num, step, round_number, loss_v, accu, test_accu,
+                              np.mean(accus), np.mean(test_accus)))
+
                 saver.save(sess, model_save_path + model_name, global_step=global_step)
 
                 helper.write_loss(loss_file, loss=loss_v)
@@ -125,20 +131,49 @@ def train():
                 quit()
 
         saver.save(sess, model_save_path + model_name, global_step=global_step)
+        # calculate accuracy on test data
+        test_accuracy = []
+        for test_step in range(TEST_FILE_LINE_NUM // TEST_BATCH_SIZE):
+            test_input = sess.run(test_input_element)
+            x1, x2, x3 = helper.convert_input(test_input, id2vector)
+            accu = sess.run([model.accuracy], feed_dict={
+                model.anchor_input: x1,
+                model.positive_input: x2,
+                model.negative_input: x3,
+                model.training: False})
+            test_accuracy.append(accu)
+        print(" test accuracy {}".format(np.mean(test_accuracy)))
 
-    # output_grap_def = tf.graph_util.convert_variables_to_constants(sess,sess.graph_def,output_node_names=[''])
 
-
-def make_dataset(file_name):
+def make_dataset(file_name, buffer_size, batch_size, epoch):
     """
 
-    :param file_name:
-    :return:
+    Args:
+        file_name:
+        buffer_size:
+        batch_size:
+        epoch:
+
+    Returns:
+
     """
     return tf.data.TextLineDataset(file_name) \
         .map(lambda s: tf.string_split([s], delimiter="\t").values) \
-        .shuffle(buffer_size=BUFFER_SIZE) \
-        .batch(batch_size=BATCH_SIZE).repeat(EPOCH)
+        .shuffle(buffer_size=buffer_size) \
+        .batch(batch_size=batch_size).repeat(epoch)
+
+
+def count_file_line(file_name):
+    """
+
+    Args:
+        file_name:
+
+    Returns:
+
+    """
+    p = os.popen('wc -l {}'.format(file_name))
+    return int(p.read().strip().split(' ')[0])
 
 
 def main(argv=None):
@@ -149,13 +184,14 @@ def main(argv=None):
     """
 
     print("************** start *****************")
-    p = os.popen('wc -l {}'.format(train_file_name))
-    global FILE_LINE_NUM
-    FILE_LINE_NUM = int(p.read().strip().split(' ')[0])
-    print("Input file has {} lines".format(FILE_LINE_NUM))
+    global TRAIN_FILE_LINE_NUM
+    TRAIN_FILE_LINE_NUM = count_file_line(train_file_name)
+    global TEST_FILE_LINE_NUM
+    TEST_FILE_LINE_NUM = count_file_line(test_file_name)
+    print("Train file has {} lines, test file has {} lines".format(TRAIN_FILE_LINE_NUM, TEST_FILE_LINE_NUM))
     train()
 
 
 if __name__ == '__main__':
-    # tf.logging.set_verbosity(tf.logging.ERROR)
+    tf.logging.set_verbosity(tf.logging.INFO)
     tf.app.run()

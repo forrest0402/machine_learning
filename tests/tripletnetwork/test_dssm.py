@@ -14,8 +14,8 @@ sys.path.extend([os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
                  os.path.dirname(os.path.dirname(__file__)), os.path.dirname(__file__)])
 
 import src.utils.tripletnetwork_helper as helper
-from src.model.tripletnetwork_v4 import TripletNetwork
-import train_v4 as train
+from src.model.tripletnetwork_dssm import TripletNetwork
+import train_dssm as train
 
 BATCH_SIZE = 1024
 

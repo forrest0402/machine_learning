@@ -13,17 +13,13 @@ class TripletNetwork:
 
     # inputs should be int
     def __init__(self, length, embedding_size):
-        self.positive_input = tf.placeholder(tf.float32, [None, length, embedding_size],
-                                             name="positive_input")
-        self.anchor_input = tf.placeholder(tf.float32, [None, length, embedding_size],
-                                           name="anchor_input")
-        self.negative_input = tf.placeholder(tf.float32, [None, length, embedding_size],
-                                             name="negative_input")
+        self.positive_input = tf.placeholder(tf.float32, [None, length, embedding_size], name="positive_input")
+        self.anchor_input = tf.placeholder(tf.float32, [None, length, embedding_size], name="anchor_input")
+        self.negative_input = tf.placeholder(tf.float32, [None, length, embedding_size], name="negative_input")
         self.training = tf.placeholder(tf.bool, name="training")
 
         with tf.variable_scope("triplet"):
-            self.positive_output, self.regularization = self.network(self.positive_input,
-                                                                     embedding_size, reuse=None)
+            self.positive_output, self.regularization = self.network(self.positive_input, embedding_size, reuse=None)
             self.anchor_output, _ = self.network(self.anchor_input, embedding_size, reuse=True)
             self.negative_output, _ = self.network(self.negative_input, embedding_size, reuse=True)
 
@@ -59,13 +55,11 @@ class TripletNetwork:
 
         flatten = tf.layers.flatten(tf.concat(filter_list, axis=3), 'flatten_layer')
         print("flatten shape: {}".format(flatten.shape))
-        output_fcl = tf.layers.dense(flatten, FILTER_DEPTH, name="fcl1", activation=tf.nn.tanh,
-                                     reuse=reuse)
+        output_fcl = tf.layers.dense(flatten, FILTER_DEPTH, name="fcl1", activation=tf.nn.tanh,  reuse=reuse)
         output_bn = tf.layers.batch_normalization(output_fcl, name="output_bn", reuse=reuse,
                                                   training=self.training, epsilon=1e-5)
         out = tf.layers.dropout(output_bn, training=self.training, name="output_dropout")
 
-        out = tf.layers.dense(out, 128, name="output", reuse=reuse)
         return out, tf.nn.l2_loss(output_fcl)
 
     def l1norm(self, vec1, vec2):
@@ -89,6 +83,5 @@ class TripletNetwork:
         return tf.reduce_mean(loss)
 
     def cal_accu(self):
-        mean = tf.cast(tf.argmax(tf.stack([self.negative_sim, self.positive_sim], axis=1), axis=1),
-                       dtype=tf.float32)
+        mean = tf.cast(tf.argmax(tf.stack([self.negative_sim, self.positive_sim], axis=1), axis=1), dtype=tf.float32)
         return tf.reduce_mean(mean)
