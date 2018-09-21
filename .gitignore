@@ -17,5 +17,5 @@ temp/
 traindata/
 out/
 log*/
-model*/
+/model*/
 test_scope.py
