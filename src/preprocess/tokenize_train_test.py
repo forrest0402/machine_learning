@@ -30,24 +30,17 @@ def get_embedding(word2idx, sentence):
     return value
 
 
-def tokenize_embedding(output_file_name):
+def tokenize_embedding(output_file_name, word2idx):
     p = os.popen('wc -l {}'.format(output_file_name))
     file_line_num = int(p.read().strip().split(' ')[0])
     print("Input file has {} lines".format(file_line_num))
 
-    word2idx = dict()
-    total_num = 0
-    for index, line in enumerate(open('model.vec', 'r', encoding="utf-8")):
-        word_embedding = line.split(' ')
-        total_num += 1
-        if len(word_embedding) >= 256:
-            word2idx[word_embedding[0]] = index - 1
-    print("{} lines in total".format(total_num))
     with open(output_file_name, "r", encoding="utf-8") as fr:
         with open(output_file_name.replace(".txt", "_tokenize.txt"), 'w', encoding="utf-8") as fw:
             for index, line in enumerate(fr.readlines()):
                 if index % 300000 == 0:
                     print("read {} lines".format(index))
+                    fw.flush()
                 try:
                     array = line.split('\t')
                     if "0 1" == array[0]:
@@ -70,6 +63,16 @@ def tokenize_embedding(output_file_name):
 
 
 if __name__ == '__main__':
-    tokenize_embedding(output_file_name='train.txt')
-    tokenize_embedding(output_file_name='test.txt')
+
+    word2idx = dict()
+    total_num = 0
+    for index, line in enumerate(open('model.vec', 'r', encoding="utf-8")):
+        word_embedding = line.split(' ')
+        total_num += 1
+        if len(word_embedding) >= 256:
+            word2idx[word_embedding[0]] = index - 1
+    print("{} lines in total".format(total_num))
+
+    tokenize_embedding(output_file_name='train.txt', word2idx=word2idx)
+    tokenize_embedding(output_file_name='test.txt', word2idx=word2idx)
     print("Hello, world")

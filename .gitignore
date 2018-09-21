@@ -16,3 +16,6 @@ src/temp.py
 temp/
 traindata/
 out/
+log*/
+model*/
+test_scope.py
