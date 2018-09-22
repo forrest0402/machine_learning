@@ -26,6 +26,8 @@ TRAIN_FILE_LINE_NUM = 0
 TEST_BATCH_SIZE = 1024
 TEST_FILE_LINE_NUM = 0
 
+MOVING_AVERAGE_DECAY = 0.99
+
 train_file_name = os.path.join(ROOT_PATH, 'data/train_tokenize.txt')
 test_file_name = os.path.join(ROOT_PATH, 'data/test_tokenize.txt')
 word2vec_file_name = os.path.join(ROOT_PATH, 'data/model.vec')
@@ -50,7 +52,8 @@ def train():
 
     id2vector = helper.get_id_vector()
 
-    model = TripletNetwork(25, 256)
+    regularizer = tf.contrib.layers.l2_regularizer(1e-4)
+    model = TripletNetwork(25, 256, regularizer=regularizer)
 
     global_step = tf.Variable(0.0, trainable=False)
     learning_rate = tf.train.exponential_decay(learning_rate=0.001,
@@ -58,11 +61,14 @@ def train():
                                                decay_steps=10000, decay_rate=0.9,
                                                staircase=True)
     optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
-
+    variable_averages = tf.train.ExponentialMovingAverage(MOVING_AVERAGE_DECAY, global_step)
+    variable_averages_op = variable_averages.apply(tf.trainable_variables())
+    loss = model.loss + tf.add_n(tf.get_collection("losses"))
     # batch normalization need this op to update its variables
-    update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-    with tf.control_dependencies(update_ops):
-        train_op = optimizer.minimize(model.loss, global_step=global_step)
+    extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+    train_step = optimizer.minimize(loss, global_step=global_step)
+    with tf.control_dependencies([train_step, variable_averages_op]):
+        train_op = tf.no_op(name="train")
 
     tf_config = tf.ConfigProto()
     tf_config.gpu_options.allow_growth = True
@@ -101,8 +107,8 @@ def train():
             input = sess.run(train_input_element)
             x1, x2, x3 = helper.convert_input(input, id2vector)
 
-            _, loss_v, accu, __ = sess.run(
-                [train_op, model.loss, model.accuracy, global_step], feed_dict={
+            _, _, loss_v, accu, _ = sess.run(
+                [train_op, extra_update_ops, model.loss, model.accuracy, global_step], feed_dict={
                     model.anchor_input: x1,
                     model.positive_input: x2,
                     model.negative_input: x3,
@@ -118,9 +124,10 @@ def train():
 
                 test_accus.append(test_accu)
 
-                print("epoch {}, step {}/{}, loss {}, accuracy {}, test accuracy {}, mean accu {}/{}"
-                      .format(epoch_num, step, round_number, loss_v, accu, test_accu,
-                              np.mean(accus), np.mean(test_accus)))
+                print(
+                    "epoch {}, step {}/{}, loss {}, accuracy {}, test accuracy {}, mean accu {}/{}"
+                    .format(epoch_num, step, round_number, loss_v, accu, test_accu,
+                            np.mean(accus), np.mean(test_accus)))
 
                 saver.save(sess, model_save_path + model_name, global_step=global_step)
 
@@ -188,7 +195,8 @@ def main(argv=None):
     TRAIN_FILE_LINE_NUM = count_file_line(train_file_name)
     global TEST_FILE_LINE_NUM
     TEST_FILE_LINE_NUM = count_file_line(test_file_name)
-    print("Train file has {} lines, test file has {} lines".format(TRAIN_FILE_LINE_NUM, TEST_FILE_LINE_NUM))
+    print("Train file has {} lines, test file has {} lines".format(TRAIN_FILE_LINE_NUM,
+                                                                   TEST_FILE_LINE_NUM))
     train()
 
 
