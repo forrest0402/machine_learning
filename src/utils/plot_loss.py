@@ -10,7 +10,7 @@ VERSION = sys.version.split(" ")[0]
 ROOT_PATH = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 
 if __name__ == '__main__':
-    file_name = ROOT_PATH + "/loss/loss.txt"
+    file_name = ROOT_PATH + "/loss_dssm/loss.txt"
     x = []
     if control.high_version():
         with open(file_name, 'r', encoding="utf-8") as fr:

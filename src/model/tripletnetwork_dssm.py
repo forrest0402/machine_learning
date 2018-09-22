@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+import random
+
 import tensorflow as tf
 
 FILTER_SIZES = [2, 3, 5, 7]
@@ -20,7 +22,7 @@ class TripletNetwork:
         self.regularizer = regularizer
 
         with tf.variable_scope("triplet"):
-            self.positive_output = self.network(self.positive_input, embedding_size, reuse=None)
+            self.positive_output = self.network(self.positive_input, embedding_size, reuse=False)
             self.anchor_output = self.network(self.anchor_input, embedding_size, reuse=True)
             self.negative_output = self.network(self.negative_input, embedding_size, reuse=True)
 
@@ -30,8 +32,14 @@ class TripletNetwork:
         with tf.name_scope("negative_cosine_distance"):
             self.negative_sim = self.cosine(self.anchor_output, self.negative_output)
 
+        with tf.name_scope("l1_distance"):
+            self.pos_dist = tf.negative(self.l1norm(self.anchor_output, self.positive_output))
+            self.neg_dist = tf.negative(self.l1norm(self.anchor_output, self.negative_output))
+
         with tf.name_scope("loss"):
             self.loss = self.cal_loss()
+            if regularizer is not None:
+                self.loss += tf.add_n(tf.get_collection("losses"))
 
         with tf.name_scope("accuracy"):
             self.accuracy = self.cal_accu()
@@ -56,16 +64,13 @@ class TripletNetwork:
 
         flatten = tf.layers.flatten(tf.concat(filter_list, axis=3), 'flatten_layer')
         print("flatten shape: {}".format(flatten.shape))
-        fcl1 = tf.layers.dense(flatten, FILTER_DEPTH, name="fcl1", activation=tf.nn.tanh,  reuse=reuse)
-        fcl1_bn = tf.layers.batch_normalization(fcl1, name="fcl1_bn", reuse=reuse,
+        output_fcl = tf.layers.dense(flatten, 128, name="fcl1", activation=tf.nn.tanh, reuse=reuse)
+        output_bn = tf.layers.batch_normalization(output_fcl, name="output_bn", reuse=reuse,
                                                   training=self.training)
-        fcl1_dropout = tf.layers.dropout(fcl1_bn, training=self.training, name="fcl1_dropout")
-
-        out = tf.layers.dense(fcl1_dropout, 128, name="output", reuse=reuse)
+        out = tf.layers.dropout(output_bn, training=self.training, name="output_dropout")
 
         if not reuse and self.regularizer is not None:
-            tf.add_to_collection('losses', self.regularizer(fcl1))
-            tf.add_to_collection('losses', self.regularizer(out))
+            tf.add_to_collection('losses', self.regularizer(output_fcl))
 
         return out
 
@@ -78,16 +83,25 @@ class TripletNetwork:
                                tf.sqrt(tf.reduce_sum(tf.square(vec2), 1)))
 
     def cal_loss_l1(self):
-        margin = 0.2
-        pos_dist = self.l1norm(self.anchor_output, self.positive_output)
-        neg_dist = self.l1norm(self.anchor_output, self.negative_output)
-        loss = tf.maximum(0.0, margin + pos_dist - neg_dist)
+        if random.random() >= 0.5:
+            logits = tf.nn.softmax(tf.stack([self.neg_dist, self.pos_dist], axis=1))
+            right = tf.matmul(logits, tf.constant([0, 1], shape=[2, 1], dtype=tf.float32))
+            loss = tf.square(tf.maximum(tf.subtract(1.0, right), 0.0))
+        else:
+            logits = tf.nn.softmax(tf.stack([self.pos_dist, self.neg_dist], axis=1))
+            right = tf.matmul(logits, tf.constant([0, 1], shape=[2, 1], dtype=tf.float32))
+            loss = tf.square(right)
         return tf.reduce_mean(loss)
 
     def cal_loss(self):
-        margin = 0.2
-        loss = tf.maximum(0.0, margin - self.positive_sim + self.negative_sim)
+        logits = tf.nn.softmax(tf.stack([self.negative_sim, self.positive_sim], axis=1))
+        right = tf.matmul(logits, tf.constant([0, 1], shape=[2, 1], dtype=tf.float32))
+        loss = tf.square(tf.maximum(tf.subtract(1.0, right), 0.0)) + tf.square(tf.subtract(1.0, right))
         return tf.reduce_mean(loss)
+
+    def cal_accu_l1(self):
+        mean = tf.cast(tf.argmax(tf.stack([self.neg_dist, self.pos_dist], axis=1), axis=1), dtype=tf.float32)
+        return tf.reduce_mean(mean)
 
     def cal_accu(self):
         mean = tf.cast(tf.argmax(tf.stack([self.negative_sim, self.positive_sim], axis=1), axis=1), dtype=tf.float32)
