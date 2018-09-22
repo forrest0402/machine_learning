@@ -26,6 +26,8 @@ TRAIN_FILE_LINE_NUM = 0
 TEST_BATCH_SIZE = 1024
 TEST_FILE_LINE_NUM = 0
 
+REGULARIZATION_RATE = 1e-3
+
 train_file_name = os.path.join(ROOT_PATH, 'data/train_tokenize.txt')
 test_file_name = os.path.join(ROOT_PATH, 'data/test_tokenize.txt')
 word2vec_file_name = os.path.join(ROOT_PATH, 'data/model.vec')
@@ -50,16 +52,18 @@ def train():
 
     id2vector = helper.get_id_vector()
 
-    model = TripletNetwork(25, 256)
+    regularizer = tf.contrib.layers.l2_regularizer(REGULARIZATION_RATE)
+    model = TripletNetwork(25, 256, regularizer)
 
     global_step = tf.Variable(0.0, trainable=False)
     learning_rate = tf.train.exponential_decay(learning_rate=0.001,
                                                global_step=global_step,
-                                               decay_steps=10000, decay_rate=0.9,
+                                               decay_steps=10000, decay_rate=0.7,
                                                staircase=True)
     optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
 
     # batch normalization need this op to update its variables
+
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     with tf.control_dependencies(update_ops):
         train_op = optimizer.minimize(model.loss, global_step=global_step)
@@ -91,6 +95,10 @@ def train():
     if os.path.isfile(log_file):
         os.remove(log_file)
         print("delete {}".format(log_file))
+
+    if os.path.isfile(loss_file):
+        os.remove(loss_file)
+        print("delete {}".format(loss_file))
 
     round_number = int(TRAIN_FILE_LINE_NUM / TRAIN_BATCH_SIZE)
     for epoch_num in range(int(global_step.eval()) // round_number, EPOCH):
