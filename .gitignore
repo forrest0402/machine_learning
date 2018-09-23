@@ -19,3 +19,9 @@ out/
 log*/
 /model*/
 test_scope.py
+venv/
+save_model/
+out
+test.py
+*.log
+
