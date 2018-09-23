@@ -72,7 +72,7 @@ def train():
             for step in range(int(FILE_LINE_NUM / BATCH_SIZE)):
 
                 input = sess.run(input_element)
-                x1, x2, x3 = converter.convert_input(input, id2vector)
+                x1, x2, x3 = converter.get_input_embedding(input, id2vector)
 
                 _, loss_v, accu, __ = sess.run(
                     [train_op, model.loss, model.accuracy, global_step],

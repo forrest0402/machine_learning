@@ -88,7 +88,7 @@ def train():
         for step in range(int(global_step.eval()) % round_number, round_number):
 
             input = sess.run(input_element)
-            x1, x2, x3 = helper.convert_input(input, id2vector)
+            x1, x2, x3 = helper.get_input_embedding(input, id2vector)
 
             _, loss_v, accu, __ = sess.run(
                 [train_op, model.loss, model.accuracy, global_step], feed_dict={

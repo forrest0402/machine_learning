@@ -67,7 +67,7 @@ if __name__ == '__main__':
                     step = 0
                     while True:
                         input = sess.run(input_element)
-                        x1, x2, x3 = converter.convert_input(input, id2vector)
+                        x1, x2, x3 = converter.get_input_embedding(input, id2vector)
                         accu = sess.run([model.accuracy],
                                         feed_dict={
                                             model.anchor_input: x1,

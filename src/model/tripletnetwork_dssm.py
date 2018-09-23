@@ -10,21 +10,29 @@ FILTER_DEPTH = 128
 
 class TripletNetwork:
     """
-    Triplet Network V4
+    Triplet Network
     """
 
     # inputs should be int
-    def __init__(self, length, embedding_size, regularizer=None):
-        self.positive_input = tf.placeholder(tf.float32, [None, length, embedding_size], name="positive_input")
-        self.anchor_input = tf.placeholder(tf.float32, [None, length, embedding_size], name="anchor_input")
-        self.negative_input = tf.placeholder(tf.float32, [None, length, embedding_size], name="negative_input")
+    def __init__(self, max_length, word_vocab, regularizer=None):
+        self.positive_input = tf.placeholder(tf.int32, [None, max_length], name="positive_input")
+        self.anchor_input = tf.placeholder(tf.int32, [None, max_length], name="anchor_input")
+        self.negative_input = tf.placeholder(tf.int32, [None, max_length], name="negative_input")
         self.training = tf.placeholder(tf.bool, name="training")
         self.regularizer = regularizer
 
+        with tf.device('/cpu:0'), tf.name_scope("embedding"):
+            W = tf.get_variable("word_embedding", trainable=False,
+                                initializer=tf.constant(word_vocab), dtype=tf.float32)
+
+            self.embedded_positive = tf.expand_dims(tf.nn.embedding_lookup(W, self.positive_input), -1)
+            self.embedded_anchor = tf.expand_dims(tf.nn.embedding_lookup(W, self.anchor_input), -1)
+            self.embedded_negative = tf.expand_dims(tf.nn.embedding_lookup(W, self.negative_input), -1)
+
         with tf.variable_scope("triplet"):
-            self.positive_output = self.network(self.positive_input, embedding_size, reuse=False)
-            self.anchor_output = self.network(self.anchor_input, embedding_size, reuse=True)
-            self.negative_output = self.network(self.negative_input, embedding_size, reuse=True)
+            self.positive_output = self.network(self.embedded_positive, reuse=False)
+            self.anchor_output = self.network(self.embedded_anchor, reuse=True)
+            self.negative_output = self.network(self.embedded_negative, reuse=True)
 
         with tf.name_scope("positive_cosine_distance"):
             self.positive_sim = self.cosine(self.anchor_output, self.positive_output)
@@ -33,30 +41,26 @@ class TripletNetwork:
             self.negative_sim = self.cosine(self.anchor_output, self.negative_output)
 
         with tf.name_scope("l1_distance"):
-            self.pos_dist = tf.negative(self.l1norm(self.anchor_output, self.positive_output))
-            self.neg_dist = tf.negative(self.l1norm(self.anchor_output, self.negative_output))
+            self.post_sim_l1 = tf.negative(self.l1norm(self.anchor_output, self.positive_output))
+            self.neg_sim_l1 = tf.negative(self.l1norm(self.anchor_output, self.negative_output))
 
         with tf.name_scope("loss"):
             self.loss = self.cal_loss()
             if regularizer is not None:
-                self.loss += tf.add_n(tf.get_collection("losses"))
+                self.loss += tf.losses.get_regularization_loss()  # tf.add_n(tf.get_collection("losses"))
 
         with tf.name_scope("accuracy"):
             self.accuracy = self.cal_accu()
 
-    def network(self, x, embedding_size, reuse=True):
+    def network(self, x, reuse=True):
         filter_list = []
         for i, filter_size in enumerate(FILTER_SIZES):
             with tf.variable_scope("layer{}".format(i)):
-                cnn = tf.layers.conv2d(tf.expand_dims(x, -1), filters=FILTER_DEPTH,
-                                       kernel_size=[filter_size, embedding_size],
-                                       activation=tf.nn.tanh, reuse=reuse,
-                                       use_bias=False, name="cnn")
+                cnn = tf.layers.conv2d(x, filters=FILTER_DEPTH, kernel_size=[filter_size, x.shape[2].value],
+                                       activation=tf.nn.tanh, reuse=reuse, use_bias=False, name="cnn")
 
-                pool = tf.layers.max_pooling2d(cnn, [cnn.shape[1].value, cnn.shape[2].value],
-                                               [1, 1], name="pool")
-                bn = tf.layers.batch_normalization(pool, name="bn", reuse=reuse,
-                                                   training=self.training)
+                pool = tf.layers.max_pooling2d(cnn, [cnn.shape[1].value, cnn.shape[2].value], [1, 1], name="pool")
+                bn = tf.layers.batch_normalization(pool, name="bn", reuse=reuse, training=self.training)
                 filter_list.append(bn)
 
                 if not reuse:
@@ -64,13 +68,17 @@ class TripletNetwork:
 
         flatten = tf.layers.flatten(tf.concat(filter_list, axis=3), 'flatten_layer')
         print("flatten shape: {}".format(flatten.shape))
-        output_fcl = tf.layers.dense(flatten, 128, name="fcl1", activation=tf.nn.tanh, reuse=reuse)
-        output_bn = tf.layers.batch_normalization(output_fcl, name="output_bn", reuse=reuse,
-                                                  training=self.training)
+
+        if self.regularizer is not None:
+            output_fcl = tf.layers.dense(flatten, 128, name="fcl1", activation=tf.nn.tanh, use_bias=False,
+                                         reuse=reuse, kernel_regularizer=self.regularizer)
+        else:
+            output_fcl = tf.layers.dense(flatten, 128, name="fcl1", activation=tf.nn.tanh, use_bias=False, reuse=reuse)
+        output_bn = tf.layers.batch_normalization(output_fcl, name="output_bn", reuse=reuse, training=self.training)
         out = tf.layers.dropout(output_bn, training=self.training, name="output_dropout")
 
-        if not reuse and self.regularizer is not None:
-            tf.add_to_collection('losses', self.regularizer(output_fcl))
+        # if not reuse and self.regularizer is not None:
+        #     tf.add_to_collection('losses', self.regularizer(output_fcl))
 
         return out
 
@@ -83,14 +91,12 @@ class TripletNetwork:
                                tf.sqrt(tf.reduce_sum(tf.square(vec2), 1)))
 
     def cal_loss_l1(self):
+        logits = tf.nn.softmax(tf.stack([self.neg_sim_l1, self.post_sim_l1], axis=1))
+        right = tf.matmul(logits, tf.constant([0, 1], shape=[2, 1], dtype=tf.float32))
         if random.random() >= 0.5:
-            logits = tf.nn.softmax(tf.stack([self.neg_dist, self.pos_dist], axis=1))
-            right = tf.matmul(logits, tf.constant([0, 1], shape=[2, 1], dtype=tf.float32))
             loss = tf.square(tf.maximum(tf.subtract(1.0, right), 0.0))
         else:
-            logits = tf.nn.softmax(tf.stack([self.pos_dist, self.neg_dist], axis=1))
-            right = tf.matmul(logits, tf.constant([0, 1], shape=[2, 1], dtype=tf.float32))
-            loss = tf.square(right)
+            loss = tf.square(tf.subtract(1.0, right))
         return tf.reduce_mean(loss)
 
     def cal_loss(self):
@@ -100,7 +106,7 @@ class TripletNetwork:
         return tf.reduce_mean(loss)
 
     def cal_accu_l1(self):
-        mean = tf.cast(tf.argmax(tf.stack([self.neg_dist, self.pos_dist], axis=1), axis=1), dtype=tf.float32)
+        mean = tf.cast(tf.argmax(tf.stack([self.neg_sim_l1, self.post_sim_l1], axis=1), axis=1), dtype=tf.float32)
         return tf.reduce_mean(mean)
 
     def cal_accu(self):

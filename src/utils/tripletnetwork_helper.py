@@ -3,23 +3,45 @@
 @Author: xiezizhe 
 @Date: 2018/9/5 下午5:36
 """
+import logging
 import os
+from itertools import islice
 
 import numpy as np
 
 import control
 
 ROOT_PATH = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-word2vec_file_name = os.path.join(ROOT_PATH, 'data/model.vec')
+WORD2VEC_FILE_NAME = os.path.join(ROOT_PATH, 'data/model.vec')
 
 
-def get_id_vector():
+def get_word_vec(word2vec_file_name):
+    logging.info("get_word_vecs {}".format(word2vec_file_name))
+    if control.high_version(flag=True):
+        id2vector = [np.array(line.split(' ')[1:], dtype=np.float32)
+                     for line in islice(open(word2vec_file_name, 'r', encoding="utf-8"), 1, None)]
+    else:
+        id2vector = [np.array(line.split(' ')[1:], dtype=np.float32)
+                     for line in islice(open(word2vec_file_name, 'r'), 1, None)]
+
+    # word_vecs = np.zeros((self.vocab_size, self.word_dim),dtype=np.float32)
+    id2vector.append(np.random.normal(0, 1, size=(128,)))
+    id2vector.append(np.random.normal(0, 1, size=(128,)))
+    word_vec = np.array(id2vector, dtype=np.float32).reshape([len(id2vector), 128])
+    logging.info("exit get_word_vecs {}".format(word_vec.shape))
+    return word_vec
+
+
+def get_id_vector(word2vec_file_name=None):
     """
 
     Returns: dictionary whose key is word id, value is its word embedding
 
     """
-    print("read read word embedding")
+    if word2vec_file_name is None:
+        word2vec_file_name = WORD2VEC_FILE_NAME
+
+    logging.info("read word embedding from {}".format(word2vec_file_name))
     if control.high_version(flag=True):
         id2vector = {index - 1: list(map(float, line.split(' ')[1:]))
                      for index, line in enumerate(open(word2vec_file_name, 'r', encoding="utf-8"))}
@@ -33,6 +55,7 @@ def get_id_vector():
     # UNK
     id2vector[-2] = [0.0] * 256
 
+    logging.info("exit get_id_vector")
     return id2vector
 
 
@@ -47,12 +70,15 @@ def get_ebedding(input, embedding_matrix):
     return [[embedding_matrix[id] for id in one] for one in input]
 
 
-def convert_input(input, id2vector):
+def read_from_input(input):
     """
+    example: input= "1,2,3 4,5,6 7,8,9", return=([1,2,3], [4,5,6], [7,8,9])
 
-    :param input: [, 3]
-    :param id2vector: [n, d] n words each word has d dimension
-    :return:
+    Args:
+        input:
+
+    Returns:
+
     """
     if control.high_version():
         input1 = np.array(
@@ -64,9 +90,6 @@ def convert_input(input, id2vector):
         input3 = np.array(
             list(map(lambda x: str(x, encoding='utf-8').split(' '), input[:, 2]))).astype(
             np.int32)
-        x1 = np.array(get_ebedding(input1, id2vector))
-        x2 = np.array(get_ebedding(input2, id2vector))
-        x3 = np.array(get_ebedding(input3, id2vector))
     else:
         input1 = np.array(
             list(map(lambda x: str(x).split(' '), input[:, 0]))).astype(
@@ -77,9 +100,20 @@ def convert_input(input, id2vector):
         input3 = np.array(
             list(map(lambda x: str(x).split(' '), input[:, 2]))).astype(
             np.int32)
-        x1 = np.array(get_ebedding(input1, id2vector))
-        x2 = np.array(get_ebedding(input2, id2vector))
-        x3 = np.array(get_ebedding(input3, id2vector))
+    return input1, input2, input3
+
+
+def get_input_embedding(input, id2vector):
+    """
+
+    :param input: [, 3]
+    :param id2vector: [n, d] n words each word has d dimension
+    :return:
+    """
+    input1, input2, input3 = read_from_input(input)
+    x1 = np.array(get_ebedding(input1, id2vector))
+    x2 = np.array(get_ebedding(input2, id2vector))
+    x3 = np.array(get_ebedding(input3, id2vector))
     return x1, x2, x3
 
 
