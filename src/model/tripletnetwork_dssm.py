@@ -30,9 +30,9 @@ class TripletNetwork:
             self.embedded_negative = tf.expand_dims(tf.nn.embedding_lookup(W, self.negative_input), -1)
 
         with tf.variable_scope("triplet"):
-            self.positive_output = self.network(self.embedded_positive, reuse=False)
-            self.anchor_output = self.network(self.embedded_anchor, reuse=True)
-            self.negative_output = self.network(self.embedded_negative, reuse=True)
+            self.positive_output = self.network(self.embedded_positive, "positive", reuse=False)
+            self.anchor_output = self.network(self.embedded_anchor, "anchor", reuse=True)
+            self.negative_output = self.network(self.embedded_negative, "negative", reuse=True)
 
         with tf.name_scope("positive_cosine_distance"):
             self.positive_sim = self.cosine(self.anchor_output, self.positive_output)
@@ -45,21 +45,22 @@ class TripletNetwork:
             self.neg_sim_l1 = tf.negative(self.l1norm(self.anchor_output, self.negative_output))
 
         with tf.name_scope("loss"):
-            self.loss = self.cal_loss()
+            self.loss = self.cal_loss_11()
             if regularizer is not None:
                 self.loss += tf.losses.get_regularization_loss()  # tf.add_n(tf.get_collection("losses"))
 
         with tf.name_scope("accuracy"):
-            self.accuracy = self.cal_accu()
+            self.accuracy = self.cal_accu_l1()
 
-    def network(self, x, reuse=True):
+    def network(self, x, name, reuse=True):
         filter_list = []
         for i, filter_size in enumerate(FILTER_SIZES):
             with tf.variable_scope("layer{}".format(i)):
                 cnn = tf.layers.conv2d(x, filters=FILTER_DEPTH, kernel_size=[filter_size, x.shape[2].value],
                                        activation=tf.nn.tanh, reuse=reuse, use_bias=False, name="cnn")
 
-                pool = tf.layers.max_pooling2d(cnn, [cnn.shape[1].value, cnn.shape[2].value], [1, 1], name="pool")
+                pool = tf.layers.max_pooling2d(cnn, [cnn.shape[1].value, cnn.shape[2].value], [1, 1],
+                                               name="pool-{}".format(name))
                 bn = tf.layers.batch_normalization(pool, name="bn", reuse=reuse, training=self.training)
                 filter_list.append(bn)
 

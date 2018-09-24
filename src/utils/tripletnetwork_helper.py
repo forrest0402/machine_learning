@@ -24,9 +24,10 @@ def get_word_vec(word2vec_file_name):
         id2vector = [np.array(line.split(' ')[1:], dtype=np.float32)
                      for line in islice(open(word2vec_file_name, 'r'), 1, None)]
 
-    # word_vecs = np.zeros((self.vocab_size, self.word_dim),dtype=np.float32)
-    id2vector.append(np.random.normal(0, 1, size=(128,)))
-    id2vector.append(np.random.normal(0, 1, size=(128,)))
+    # id2vector.append(np.random.normal(0, 1, size=(128,)))
+    # id2vector.append(np.random.normal(0, 1, size=(128,)))
+    id2vector.append(np.array(np.repeat(1.0, 128), dtype=np.float32))
+    id2vector.append(np.zeros([128], dtype=np.float32))
     word_vec = np.array(id2vector, dtype=np.float32).reshape([len(id2vector), 128])
     logging.info("exit get_word_vecs {}".format(word_vec.shape))
     return word_vec

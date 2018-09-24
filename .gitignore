@@ -19,9 +19,10 @@ out/
 log*/
 /model*/
 test_scope.py
-venv/
+/venv/
 save_model/
 out
 test.py
 *.log
-
+/loss*/
+/traindata/
