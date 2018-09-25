@@ -42,8 +42,9 @@ class TripletNetwork:
                                            kernel_size=[filter_size, self.embedded_anchor.shape[2].value],
                                            kernel_initializer=kernel_initializer,
                                            reuse=False, use_bias=False, name="cnn")
-
-                    bn, mean, var, beta, offset = self.batch_normalization(cnn, FILTER_DEPTH)
+                    bn = tf.layers.batch_normalization(cnn, name="bn", reuse=False, training=False,
+                                                       epsilon=1e-5)
+                    # bn, mean, var, beta, offset = self.batch_normalization(cnn, FILTER_DEPTH)
                     pool = tf.layers.max_pooling2d(tf.nn.tanh(bn), [bn.shape[1].value, bn.shape[2].value],
                                                    [1, 1], name="pool-anchor")
 
@@ -53,7 +54,8 @@ class TripletNetwork:
                                            kernel_size=[filter_size, self.embedded_anchor.shape[2].value],
                                            reuse=True, use_bias=False, name="cnn")
 
-                    bn = self.batch_same(cnn, mean, var, beta, offset)
+                    # bn = self.batch_same(cnn, mean, var, beta, offset)
+                    bn = tf.layers.batch_normalization(cnn, name="bn", reuse=True, training=False, epsilon=1e-5)
                     pool = tf.layers.max_pooling2d(tf.nn.tanh(bn), [bn.shape[1].value, bn.shape[2].value],
                                                    [1, 1], name="pool-positive")
 
@@ -62,8 +64,8 @@ class TripletNetwork:
                     cnn = tf.layers.conv2d(self.embedded_negative, filters=FILTER_DEPTH,
                                            kernel_size=[filter_size, self.embedded_anchor.shape[2].value],
                                            reuse=True, use_bias=False, name="cnn")
-
-                    bn = self.batch_same(cnn, mean, var, beta, offset)
+                    bn = tf.layers.batch_normalization(cnn, name="bn", reuse=True, training=False, epsilon=1e-5)
+                    # bn = self.batch_same(cnn, mean, var, beta, offset)
                     pool = tf.layers.max_pooling2d(tf.nn.tanh(bn), [bn.shape[1].value, bn.shape[2].value],
                                                    [1, 1], name="pool-negative")
 
@@ -78,17 +80,23 @@ class TripletNetwork:
                                          reuse=False, kernel_regularizer=self.regularizer,
                                          kernel_initializer=tf.contrib.layers.xavier_initializer(),
                                          bias_initializer=tf.constant_initializer(0.1))
-            output_bn, mean, var, beta, offset = self.batch_normalization(fcl_anchor, FILTER_DEPTH)
+            # output_bn, mean, var, beta, offset = self.batch_normalization(fcl_anchor, FILTER_DEPTH)
+            output_bn = tf.layers.batch_normalization(fcl_anchor, name="output_bn", reuse=False, training=False,
+                                                      epsilon=1e-5)
             self.anchor_output = tf.layers.dropout(tf.nn.tanh(output_bn), training=self.training,
                                                    name="output_dropout-anchor")
 
             fcl_pos = tf.layers.dense(flatten_pos, FILTER_DEPTH, name="fcl1", use_bias=True, reuse=True)
-            pos_bn = self.batch_same(fcl_pos, mean, var, beta, offset)
+            # pos_bn = self.batch_same(fcl_pos, mean, var, beta, offset)
+            pos_bn = tf.layers.batch_normalization(fcl_pos, name="output_bn", reuse=True, training=False,
+                                                   epsilon=1e-5)
             self.positive_output = tf.layers.dropout(tf.nn.tanh(pos_bn), training=self.training,
                                                      name="output_dropout-pos")
 
             fcl_neg = tf.layers.dense(flatten_neg, FILTER_DEPTH, name="fcl1", use_bias=True, reuse=True)
-            neg_bn = self.batch_same(fcl_neg, mean, var, beta, offset)
+            # neg_bn = self.batch_same(fcl_neg, mean, var, beta, offset)
+            neg_bn = tf.layers.batch_normalization(fcl_neg, name="output_bn", reuse=True, training=False,
+                                                   epsilon=1e-5)
             self.negative_output = tf.layers.dropout(tf.nn.tanh(neg_bn), training=self.training,
                                                      name="output_dropout-neg")
 
