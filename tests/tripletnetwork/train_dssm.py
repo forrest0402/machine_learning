@@ -16,11 +16,11 @@ sys.path.extend([os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
                  os.path.dirname(os.path.dirname(__file__)), os.path.dirname(__file__)])
 
 import src.utils.tripletnetwork_helper as helper
-from src.model.tripletnetwork_dssm_l1_long import TripletNetwork
+from src.model.tripletnetwork_cosine import TripletNetwork
 
 ROOT_PATH = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 TRAIN_BATCH_SIZE = 128
-EPOCH = 5
+EPOCH = 10
 TRAIN_BUFFER_SIZE = 8196
 TRAIN_FILE_LINE_NUM = 0
 
@@ -29,11 +29,11 @@ TEST_FILE_LINE_NUM = 0
 
 REGULARIZATION_RATE = 1e-4
 
-MODE = "l1"
-train_file_name = os.path.join(ROOT_PATH, 'data/simple/train_id.txt')
-test_file_name = os.path.join(ROOT_PATH, 'data/simple/test_id.txt')
+MODE = "cosine_hard"
+train_file_name = os.path.join(ROOT_PATH, 'data/train_id.txt')
+test_file_name = os.path.join(ROOT_PATH, 'data/test_id.txt')
 word2vec_file_name = os.path.join(ROOT_PATH, 'data/wordvec.vec')
-model_save_path = os.path.join(ROOT_PATH, 'model_dssm_simple_{}/'.format(MODE))
+model_save_path = os.path.join(ROOT_PATH, 'model_dssm_{}/'.format(MODE))
 model_name = "triplet_network.ckpt"
 log_file = os.path.join(ROOT_PATH, 'log/triplet_network_dssm_{}'.format(MODE))
 loss_file = os.path.join(ROOT_PATH, 'loss_dssm_{}/loss.txt'.format(MODE))
@@ -116,6 +116,13 @@ def train():
 
                 accus.append(accu)
                 if step % 1000 == 0:
+                    # test
+                    # gamma = tf.get_default_graph().get_tensor_by_name("triplet/output_bn/gamma:0")
+                    # beta = tf.get_default_graph().get_tensor_by_name("triplet/output_bn/beta:0")
+                    # mean = tf.get_default_graph().get_tensor_by_name("triplet/output_bn/moving_mean:0")
+                    # variance = tf.get_default_graph().get_tensor_by_name("triplet/output_bn/moving_variance:0")
+                    # print("mean = {}, variance = {}".format(sess.run(mean), sess.run(variance)))
+
                     test_accu, post_sim_l1, neg_sim_l1 = sess.run([model.accuracy, model.post_sim_l1, model.neg_sim_l1],
                                                                   feed_dict={
                                                                       model.anchor_input: x1,
@@ -123,7 +130,7 @@ def train():
                                                                       model.negative_input: x3,
                                                                       model.training: False})
 
-                    if test_accu < 0.4:
+                    if test_accu < 0.3:
                         logging.info(post_sim_l1)
                         logging.info(neg_sim_l1)
 
@@ -206,7 +213,7 @@ def main(argv=None):
 if __name__ == '__main__':
     # sys.stdout = open(os.path.join(ROOT_PATH, "train_dssm.log"), "w")
     tf.logging.set_verbosity(tf.logging.INFO)
-    logging.basicConfig(filename=os.path.join(ROOT_PATH, "train_dssm_simple.log"),
+    logging.basicConfig(filename=os.path.join(ROOT_PATH, "train_dssm_{}.log".format(MODE)),
                         level=logging.DEBUG,
                         format="%(asctime)s - %(levelname)s - %(filename)s:%(lineno)s - %(message)s",
                         filemode="w")
