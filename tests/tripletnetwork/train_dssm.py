@@ -223,4 +223,3 @@ if __name__ == '__main__':
         print(traceback.format_exc())
         logging.error("{}:{}".format(traceback.format_exception(*sys.exc_info())[-2],
                                      traceback.format_exception(*sys.exc_info())[-1]))
-        # logging.error("Unexpected exception! %s", e)

@@ -117,17 +117,18 @@ class TripletNetwork:
         return tf.reduce_sum(tf.abs(vec1 - vec2), axis=1)
 
     def cal_loss_l1(self):
-        batch_size = 128
+        # batch_size = 128
         if random.random() >= 0.5:
             logits = tf.nn.softmax(tf.stack([self.neg_sim_l1, self.post_sim_l1], axis=1))
-            labels = tf.constant([1] * batch_size, shape=[batch_size, 1], dtype=tf.float32)
+            # labels = tf.constant([1] * batch_size, shape=[batch_size, 1], dtype=tf.float32)
+            right = tf.matmul(logits, tf.constant([0, 1], shape=[2, 1], dtype=tf.float32))
+            loss = tf.square(tf.maximum(tf.subtract(1.0, right), 0.0))
         else:
             logits = tf.nn.softmax(tf.stack([self.post_sim_l1, self.neg_sim_l1], axis=1))
-            labels = tf.constant([0] * batch_size, shape=[batch_size, 1], dtype=tf.float32)
-        right = tf.matmul(logits, tf.constant([0, 1], shape=[2, 1], dtype=tf.float32))
+            # labels = tf.constant([0] * batch_size, shape=[batch_size, 1], dtype=tf.float32)
+            right = tf.matmul(logits, tf.constant([0, 1], shape=[2, 1], dtype=tf.float32))
+            loss = tf.square(right)
 
-        loss = tf.multiply(tf.subtract(1.0, labels), tf.square(right)) + \
-               tf.multiply(labels, tf.square(tf.maximum(tf.subtract(1.0, right), 0.0)))
         return tf.reduce_mean(loss)
 
     def cal_accu_l1(self):
