@@ -9,6 +9,7 @@ import os
 import sys
 import traceback
 
+import argparse
 import numpy as np
 import tensorflow as tf
 
@@ -39,12 +40,11 @@ log_file = os.path.join(ROOT_PATH, 'log/triplet_network_dssm_{}'.format(MODE))
 loss_file = os.path.join(ROOT_PATH, 'loss_dssm_{}/loss.txt'.format(MODE))
 
 
-def train():
+def train(argv=None):
     """
 
     :return:
     """
-
     # make datasets
     train_data = make_dataset(train_file_name, TRAIN_BUFFER_SIZE, TRAIN_BATCH_SIZE, EPOCH)
     train_iterator = train_data.make_initializable_iterator()
@@ -57,7 +57,7 @@ def train():
     # build model
     word_vec = helper.get_word_vec(word2vec_file_name)
     regularizer = tf.contrib.layers.l2_regularizer(scale=REGULARIZATION_RATE)
-    model = TripletNetwork(25, word_vec, regularizer)
+    model = TripletNetwork(25, word_vec, regularizer, trainable=FLAGS.trainable)
 
     # write graph for tensorboard
     logging.info([x.name for x in tf.global_variables()])
@@ -202,24 +202,40 @@ def main(argv=None):
     """
 
     logging.info("************** start *****************")
+    logging.info(FLAGS)
     global TRAIN_FILE_LINE_NUM
     TRAIN_FILE_LINE_NUM = count_file_line(train_file_name)
     global TEST_FILE_LINE_NUM
     TEST_FILE_LINE_NUM = count_file_line(test_file_name)
     logging.info("Train file has {} lines, test file has {} lines".format(TRAIN_FILE_LINE_NUM, TEST_FILE_LINE_NUM))
-    train()
+    train(argv)
 
 
 if __name__ == '__main__':
+
+    def str2bool(v):
+        if v.lower() in ('true', 't', '1'):
+            return True
+        elif v.lower() in ('false', 'f', '0'):
+            return False
+        else:
+            raise argparse.ArgumentTypeError("Boolean value expedted.")
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output_suffix", default="cosine_hard")
+    parser.add_argument("--trainable", type=str2bool, default=True)
+    FLAGS, unparsed = parser.parse_known_args()
     # sys.stdout = open(os.path.join(ROOT_PATH, "train_dssm.log"), "w")
     tf.logging.set_verbosity(tf.logging.INFO)
     logging.basicConfig(filename=os.path.join(ROOT_PATH, "train_dssm_{}.log".format(MODE)),
                         level=logging.DEBUG,
                         format="%(asctime)s - %(levelname)s - %(filename)s:%(lineno)s - %(message)s",
                         filemode="w")
-    try:
-        tf.app.run()
-    except Exception as e:
-        print(traceback.format_exc())
-        logging.error("{}:{}".format(traceback.format_exception(*sys.exc_info())[-2],
-                                     traceback.format_exception(*sys.exc_info())[-1]))
+
+    tf.app.run()
+    # try:
+    #     tf.app.run()
+    # except Exception as e:
+    #     print(traceback.format_exc())
+    #     logging.error("{}:{}".format(traceback.format_exception(*sys.exc_info())[-2],
+    #                                  traceback.format_exception(*sys.exc_info())[-1]))
