@@ -61,10 +61,10 @@ class TripletNetwork:
 
                 filter_list.append(pool)
 
-        flatten_anchor = tf.layers.flatten(tf.concat(filter_list, axis=3), 'flatten-{}'.format(name))
+        flatten = tf.layers.flatten(tf.concat(filter_list, axis=3), 'flatten-{}'.format(name))
 
         # fcl
-        fcl = tf.layers.dense(flatten_anchor, FILTER_DEPTH, name="fcl1", use_bias=True,
+        fcl = tf.layers.dense(flatten, FILTER_DEPTH, name="fcl1", use_bias=True,
                               reuse=reuse, kernel_regularizer=self.regularizer,
                               kernel_initializer=tf.contrib.layers.xavier_initializer(),
                               bias_initializer=tf.constant_initializer(0.1))

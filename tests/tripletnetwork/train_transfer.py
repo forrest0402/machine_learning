@@ -17,7 +17,7 @@ sys.path.extend([os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
                  os.path.dirname(os.path.dirname(__file__)), os.path.dirname(__file__)])
 
 import src.utils.tripletnetwork_helper as helper
-from src.model.tripletnetwork_cosine import TripletNetwork
+from src.model.tripletnetwork_transfer import TripletNetwork
 
 ROOT_PATH = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 TRAIN_BATCH_SIZE = 128
@@ -30,7 +30,7 @@ TEST_FILE_LINE_NUM = 0
 
 REGULARIZATION_RATE = 1e-4
 
-OUTPUT_SUFFIX = "cosine_hard"
+OUTPUT_SUFFIX = "transfer_l1"
 train_file_name = os.path.join(ROOT_PATH, 'data/train_id.txt')
 test_file_name = os.path.join(ROOT_PATH, 'data/test_id.txt')
 word2vec_file_name = os.path.join(ROOT_PATH, 'data/wordvec.vec')
@@ -131,8 +131,16 @@ def train(argv=None):
                                                                       model.training: False})
 
                     if test_accu < 0.3:
-                        logging.info(post_sim_l1)
-                        logging.info(neg_sim_l1)
+                        anchor, pos, neg = sess.run([model.anchor_output, model.positive_output, model.negative_output],
+                                                    feed_dict={model.anchor_input: x1,
+                                                               model.positive_input: x2,
+                                                               model.negative_input: x3,
+                                                               model.training: False})
+                        logging.error("anchor output: {}".format(anchor))
+                        logging.error("pos output: {}".format(pos))
+                        logging.error("neg output: {}".format(neg))
+                        logging.error(post_sim_l1)
+                        logging.error(neg_sim_l1)
 
                     test_accus.append(test_accu)
 
@@ -141,12 +149,7 @@ def train(argv=None):
                                          np.mean(accus), np.mean(test_accus)))
 
                     saver.save(sess, model_save_path + model_name, global_step=global_step)
-
                     helper.write_loss(loss_file, loss=loss_v)
-
-                if np.isnan(loss_v):
-                    logging.info('Model diverged with loss = NaN')
-                    quit()
 
             saver.save(sess, model_save_path + model_name, global_step=global_step)
             # calculate accuracy on test data
@@ -203,6 +206,9 @@ def main(argv=None):
 
     logging.info("************** start *****************")
     logging.info(FLAGS)
+    if FLAGS.rerun:
+        os.popen('rm {}*'.format(model_save_path))
+        logging.info("delete - {}".format(model_save_path))
     global TRAIN_FILE_LINE_NUM
     TRAIN_FILE_LINE_NUM = count_file_line(train_file_name)
     global TEST_FILE_LINE_NUM
@@ -224,6 +230,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--trainable", type=str2bool, default=True)
+    parser.add_argument("--rerun", type=str2bool, default=True)
     FLAGS, unparsed = parser.parse_known_args()
     # sys.stdout = open(os.path.join(ROOT_PATH, "train_dssm.log"), "w")
     tf.logging.set_verbosity(tf.logging.INFO)
