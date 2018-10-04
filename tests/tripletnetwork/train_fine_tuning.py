@@ -12,6 +12,7 @@ import traceback
 
 import numpy as np
 import tensorflow as tf
+import tensorflow.contrib.slim as slim
 
 sys.path.extend([os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
                  os.path.dirname(os.path.dirname(__file__)), os.path.dirname(__file__)])
@@ -30,12 +31,12 @@ TEST_FILE_LINE_NUM = 0
 
 REGULARIZATION_RATE = 1e-4
 
-OUTPUT_SUFFIX = "transfer_l1"
+OUTPUT_SUFFIX = "fine_tuning_l1"
 train_file_name = os.path.join(ROOT_PATH, 'data/train_id.txt')
 test_file_name = os.path.join(ROOT_PATH, 'data/test_id.txt')
 word2vec_file_name = os.path.join(ROOT_PATH, 'data/wordvec.vec')
 model_save_path = os.path.join(ROOT_PATH, 'model_dssm_{}/'.format(OUTPUT_SUFFIX))
-model_name = "triplet_network.ckpt"
+model_name = "triplet_network.fine.tuning"
 log_file = os.path.join(ROOT_PATH, 'log/triplet_network_dssm_{}'.format(OUTPUT_SUFFIX))
 loss_file = os.path.join(ROOT_PATH, 'loss_dssm_{}/loss.txt'.format(OUTPUT_SUFFIX))
 
@@ -55,14 +56,12 @@ def train(argv=None):
     test_input_element = test_iterator.get_next()
 
     # build model
-    word_vec = helper.get_word_vec(word2vec_file_name)
+    word_vec = np.zeros(shape=[378026, 128], dtype=np.float32)
     regularizer = tf.contrib.layers.l2_regularizer(scale=REGULARIZATION_RATE)
-    model = TripletNetwork(25, word_vec, regularizer, trainable=FLAGS.trainable)
+    model = TripletNetwork(25, word_vec, regularizer)
 
-    # write graph for tensorboard
-    logging.info([x.name for x in tf.global_variables()])
-    write = tf.summary.FileWriter(log_file, tf.get_default_graph())
-    write.close()
+    variables = slim.get_variables_to_restore()
+    variables_to_restore = [v for v in variables if 'filter' in v.name or 'embedding' in v.name]
 
     logging.info("setting hyperparameters")
     global_step = tf.Variable(0.0, trainable=False, name="global_step")
@@ -85,8 +84,8 @@ def train(argv=None):
         ckpt = tf.train.get_checkpoint_state(model_save_path)
         if ckpt and ckpt.model_checkpoint_path:
             logging.info("load model from {}".format(ckpt.model_checkpoint_path))
-            saver.restore(sess, ckpt.model_checkpoint_path)
-            if FLAGS.rerun or FLAGS.reset_global_step:
+            tf.train.Saver(variables_to_restore).restore(sess, ckpt.model_checkpoint_path)
+            if FLAGS.rerun:
                 global_step = global_step.assign(0)
                 sess.run(global_step)
             test(sess, test_input_element, model)
@@ -214,13 +213,10 @@ def main(argv=None):
     :return:
     """
 
-    logging.info("************** start train transfer model*****************")
+    logging.info("************** start fine tuning*****************")
     logging.info(FLAGS)
     if FLAGS.rerun:
-        if FLAGS.trainable:
-            command_str = 'rm -f {}*'.format(model_save_path)
-        else:
-            command_str = 'rm -f {}*'.format(model_save_path+model_name.replace("ckpt", "tf"))
+        command_str = 'rm -f {}*'.format(model_save_path)
         os.popen(command_str)
         logging.info("executing - {}".format(command_str))
     global TRAIN_FILE_LINE_NUM
@@ -244,9 +240,7 @@ if __name__ == '__main__':
 
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--trainable", type=str2bool, default=True)
     parser.add_argument("--rerun", type=str2bool, default=True)
-    parser.add_argument("--reset_global_step", type=str2bool, default=False)
     FLAGS, unparsed = parser.parse_known_args()
     # sys.stdout = open(os.path.join(ROOT_PATH, "train_dssm.log"), "w")
     tf.logging.set_verbosity(tf.logging.INFO)
