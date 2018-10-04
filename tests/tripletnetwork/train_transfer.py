@@ -86,6 +86,10 @@ def train(argv=None):
         if ckpt and ckpt.model_checkpoint_path:
             logging.info("load model from {}".format(ckpt.model_checkpoint_path))
             saver.restore(sess, ckpt.model_checkpoint_path)
+            if FLAGS.rerun or FLAGS.reset_global_step:
+                global_step = global_step.assign(0)
+                sess.run(global_step)
+            test(sess, test_input_element, model)
         else:
             logging.info("no existing model found")
             sess.run((tf.global_variables_initializer(), tf.local_variables_initializer()))
@@ -147,23 +151,29 @@ def train(argv=None):
                     logging.info("epoch {}, step {}/{}, loss {}, accuracy {}, test accuracy {}, mean accu {}/{}"
                                  .format(epoch_num, step, round_number, loss_v, accu, test_accu,
                                          np.mean(accus), np.mean(test_accus)))
-
-                    saver.save(sess, model_save_path + model_name, global_step=global_step)
+                    cur_save_path = model_save_path + model_name
+                    if not FLAGS.trainable:
+                        cur_save_path = model_save_path + model_name.replace(".ckpt", "tf")
+                    saver.save(sess, cur_save_path, global_step=global_step)
                     helper.write_loss(loss_file, loss=loss_v)
 
-            saver.save(sess, model_save_path + model_name, global_step=global_step)
+            saver.save(sess, model_save_path + model_name.replace("ckpt", "epoch"), global_step=global_step)
             # calculate accuracy on test data
-            test_accuracy = []
-            for test_step in range(TEST_FILE_LINE_NUM // TEST_BATCH_SIZE):
-                test_input = sess.run(test_input_element)
-                x1, x2, x3 = helper.read_from_input(test_input)
-                accu = sess.run([model.accuracy], feed_dict={
-                    model.anchor_input: x1,
-                    model.positive_input: x2,
-                    model.negative_input: x3,
-                    model.training: False})
-                test_accuracy.append(accu)
-            logging.info(" test accuracy {}".format(np.mean(test_accuracy)))
+            test(sess, test_input_element, model)
+
+
+def test(sess, test_input_element, model):
+    test_accuracy = []
+    for test_step in range(TEST_FILE_LINE_NUM // TEST_BATCH_SIZE):
+        test_input = sess.run(test_input_element)
+        x1, x2, x3 = helper.read_from_input(test_input)
+        accu = sess.run([model.accuracy], feed_dict={
+            model.anchor_input: x1,
+            model.positive_input: x2,
+            model.negative_input: x3,
+            model.training: False})
+        test_accuracy.append(accu)
+    logging.info(" test accuracy {}".format(np.mean(test_accuracy)))
 
 
 def make_dataset(file_name, buffer_size, batch_size, epoch):
@@ -207,14 +217,19 @@ def main(argv=None):
     logging.info("************** start *****************")
     logging.info(FLAGS)
     if FLAGS.rerun:
-        os.popen('rm {}*'.format(model_save_path))
-        logging.info("delete - {}".format(model_save_path))
+        if FLAGS.trainable:
+            command_str = 'rm -f {}*'.format(model_save_path)
+        else:
+            command_str = 'rm -f {}*'.format(model_save_path+model_name.replace("ckpt", "tf"))
+        os.popen(command_str)
+        logging.info("executing - {}".format(command_str))
     global TRAIN_FILE_LINE_NUM
     TRAIN_FILE_LINE_NUM = count_file_line(train_file_name)
     global TEST_FILE_LINE_NUM
     TEST_FILE_LINE_NUM = count_file_line(test_file_name)
     logging.info("Train file has {} lines, test file has {} lines".format(TRAIN_FILE_LINE_NUM, TEST_FILE_LINE_NUM))
     train(argv)
+    logging.info("Hello, world.")
 
 
 if __name__ == '__main__':
@@ -231,6 +246,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--trainable", type=str2bool, default=True)
     parser.add_argument("--rerun", type=str2bool, default=True)
+    parser.add_argument("--reset_global_step", type=str2bool, default=False)
     FLAGS, unparsed = parser.parse_known_args()
     # sys.stdout = open(os.path.join(ROOT_PATH, "train_dssm.log"), "w")
     tf.logging.set_verbosity(tf.logging.INFO)
