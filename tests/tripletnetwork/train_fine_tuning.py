@@ -17,6 +17,7 @@ import tensorflow.contrib.slim as slim
 sys.path.extend([os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
                  os.path.dirname(os.path.dirname(__file__)), os.path.dirname(__file__)])
 
+import train_transfer
 import src.utils.tripletnetwork_helper as helper
 from src.model.tripletnetwork_transfer import TripletNetwork
 
@@ -35,10 +36,10 @@ OUTPUT_SUFFIX = "fine_tuning_l1"
 train_file_name = os.path.join(ROOT_PATH, 'data/train_id.txt')
 test_file_name = os.path.join(ROOT_PATH, 'data/test_id.txt')
 word2vec_file_name = os.path.join(ROOT_PATH, 'data/wordvec.vec')
-model_save_path = os.path.join(ROOT_PATH, 'model_dssm_{}/'.format(OUTPUT_SUFFIX))
+model_save_path = os.path.join(ROOT_PATH, 'model_{}/'.format(OUTPUT_SUFFIX))
 model_name = "triplet_network.fine.tuning"
-log_file = os.path.join(ROOT_PATH, 'log/triplet_network_dssm_{}'.format(OUTPUT_SUFFIX))
-loss_file = os.path.join(ROOT_PATH, 'loss_dssm_{}/loss.txt'.format(OUTPUT_SUFFIX))
+log_file = os.path.join(ROOT_PATH, 'log/triplet_network_{}'.format(OUTPUT_SUFFIX))
+loss_file = os.path.join(ROOT_PATH, 'loss_{}/loss.txt'.format(OUTPUT_SUFFIX))
 
 
 def train(argv=None):
@@ -56,9 +57,9 @@ def train(argv=None):
     test_input_element = test_iterator.get_next()
 
     # build model
-    word_vec = np.zeros(shape=[378026, 128], dtype=np.float32)
+    word_vec = np.zeros(shape=[378028, 128], dtype=np.float32)
     regularizer = tf.contrib.layers.l2_regularizer(scale=REGULARIZATION_RATE)
-    model = TripletNetwork(25, word_vec, regularizer)
+    model = TripletNetwork(25, word_vec, regularizer, False)
 
     variables = slim.get_variables_to_restore()
     variables_to_restore = [v for v in variables if 'filter' in v.name or 'embedding' in v.name]
@@ -81,17 +82,11 @@ def train(argv=None):
         sess.run(train_iterator.initializer)
         sess.run(test_iterator.initializer)
 
-        ckpt = tf.train.get_checkpoint_state(model_save_path)
+        ckpt = tf.train.get_checkpoint_state(train_transfer.model_save_path)
         if ckpt and ckpt.model_checkpoint_path:
             logging.info("load model from {}".format(ckpt.model_checkpoint_path))
-            tf.train.Saver(variables_to_restore).restore(sess, ckpt.model_checkpoint_path)
-            if FLAGS.rerun:
-                global_step = global_step.assign(0)
-                sess.run(global_step)
-            test(sess, test_input_element, model)
-        else:
-            logging.info("no existing model found")
             sess.run((tf.global_variables_initializer(), tf.local_variables_initializer()))
+            tf.train.Saver(variables_to_restore).restore(sess, ckpt.model_checkpoint_path)
 
         if os.path.isfile(log_file):
             os.remove(log_file)
@@ -133,7 +128,7 @@ def train(argv=None):
                                                                       model.negative_input: x3,
                                                                       model.training: False})
 
-                    if test_accu < 0.3:
+                    if test_accu < 0.4:
                         anchor, pos, neg = sess.run([model.anchor_output, model.positive_output, model.negative_output],
                                                     feed_dict={model.anchor_input: x1,
                                                                model.positive_input: x2,
@@ -151,12 +146,10 @@ def train(argv=None):
                                  .format(epoch_num, step, round_number, loss_v, accu, test_accu,
                                          np.mean(accus), np.mean(test_accus)))
                     cur_save_path = model_save_path + model_name
-                    if not FLAGS.trainable:
-                        cur_save_path = model_save_path + model_name.replace(".ckpt", "tf")
                     saver.save(sess, cur_save_path, global_step=global_step)
                     helper.write_loss(loss_file, loss=loss_v)
 
-            saver.save(sess, model_save_path + model_name.replace("ckpt", "epoch"), global_step=global_step)
+            saver.save(sess, model_save_path + model_name + "epoch", global_step=global_step)
             # calculate accuracy on test data
             test(sess, test_input_element, model)
 
@@ -242,9 +235,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--rerun", type=str2bool, default=True)
     FLAGS, unparsed = parser.parse_known_args()
-    # sys.stdout = open(os.path.join(ROOT_PATH, "train_dssm.log"), "w")
+    # sys.stdout = open(os.path.join(ROOT_PATH, "train_{}.log".format(OUTPUT_SUFFIX)), "w")
     tf.logging.set_verbosity(tf.logging.INFO)
-    logging.basicConfig(filename=os.path.join(ROOT_PATH, "train_dssm_{}.log".format(OUTPUT_SUFFIX)),
+    logging.basicConfig(filename=os.path.join(ROOT_PATH, "train_{}.log".format(OUTPUT_SUFFIX)),
                         level=logging.DEBUG,
                         format="%(asctime)s - %(levelname)s - %(filename)s:%(lineno)s - %(message)s",
                         filemode="w")
