@@ -2,6 +2,7 @@
 import random
 import os
 from itertools import combinations
+import os
 
 """
 将之前dssm需要的训练数据转化成triplet_network的需要的数据输入格式

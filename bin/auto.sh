@@ -6,8 +6,9 @@ then
     rm -f pid.txt
 fi
 
-nohup python -u tests/train_triplet_network_v4.py &>out&
+nohup python -u tests/tripletnetwork/train_cosine.py &>out.log&
 pid=$!
 echo $pid > pid.txt
 
 echo 'start successfully'
+

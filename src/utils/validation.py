@@ -4,7 +4,7 @@
 @Author: xiezizhe
 @Date: 2018/9/6 下午5:17
 """
-
+from tripletnetwork import train_v3 as train
 
 def validate(file_name):
     with open(file_name, 'r') as fr:
@@ -33,3 +33,4 @@ if __name__ == '__main__':
     validate('train_tokenize.txt')
     print("*******************validate test.txt*******************")
     validate('test_tokenize.txt')
+

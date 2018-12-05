@@ -148,6 +148,7 @@ def tokenize_embedding(output_file_name):
                     array = line.split('\t')
                     fw.write("{}\t{}\t{}\t{}".format(array[0], get_embedding(word2idx, array[1], cache),
                                                      get_embedding(word2idx, array[2], cache),
+
                                                      get_embedding(word2idx, array[3], cache)))
                     fw.write('\n')
                 except Exception:
@@ -159,6 +160,7 @@ def tokenize_embedding(output_file_name):
 if __name__ == '__main__':
     excel_file_name = '../data/faq_train_90_.xlsx'
     output_file_name = '../data/train.txt'
+
     tokenize_embedding(output_file_name=output_file_name)
     # if Path(output_file_name).is_file():
     #     shuffle_file(output_file_name=output_file_name)
