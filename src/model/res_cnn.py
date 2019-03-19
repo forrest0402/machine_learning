@@ -31,6 +31,11 @@ class ResCNN:
         with tf.name_scope("cosine_similarity"):
             self.pos_sim = self.cosine(self.anchor_output, self.positive_output)
             self.neg_sim = self.cosine(self.anchor_output, self.negative_output)
+            self.neg_pos_sim = self.cosine(self.positive_output, self.negative_output)
+
+        with tf.name_scope("l1_dist"):
+            self.pos_dist = self.l1norm(self.anchor_output, self.positive_output)
+            self.neg_dist = self.l1norm(self.anchor_output, self.negative_output)
 
         with tf.name_scope("loss"):
             self.loss = self.cal_loss()
@@ -42,33 +47,27 @@ class ResCNN:
             self.accuracy = self.cal_accu()
             tf.summary.scalar('accuracy', self.accuracy)
 
-    def network(self, input_tensor, mid_channels=32, depth=1, reuse=False):
+    def network(self, input_tensor, mid_channels=16, depth=1, reuse=False):
         output = tf.layers.conv2d(tf.expand_dims(input_tensor, -1), mid_channels, 3,
                                   padding='same', activation=tf.nn.relu)
 
         for layers in range(depth):
             with tf.variable_scope('block_{}'.format(layers)):
-                identity = tf.layers.conv2d(output, mid_channels, 1, padding='same', name='identity_conv',
-                                            reuse=reuse, use_bias=False)
-                identity = tf.layers.batch_normalization(identity, training=self.training, reuse=reuse, name="bn1")
-                output = tf.layers.conv2d(output, mid_channels // 4, [1, output.shape[2].value // 8], padding='same',
+                identity = tf.layers.batch_normalization(output, training=self.training, reuse=reuse, name="bn1")
+                output = tf.layers.conv2d(output, mid_channels, [1, output.shape[2].value // 8], padding='same',
                                           name='conv_{}_0'.format(layers), use_bias=False, reuse=reuse)
                 output = tf.nn.relu(tf.layers.batch_normalization(output, training=self.training,
                                                                   reuse=reuse, name="bn2"))
-
-                output = tf.layers.conv2d(output, mid_channels, 1, padding='same', name='conv_{}_2'.format(layers),
-                                          use_bias=False, reuse=reuse)
-                output = tf.layers.batch_normalization(output, training=self.training, reuse=reuse, name="bn3")
                 output = tf.nn.relu(identity + output)
 
         with tf.variable_scope('blockY'):
-            output = tf.layers.conv2d(output, 2, [1, output.shape[2].value // 4], padding='same',
-                                      use_bias=False, reuse=reuse)
+            output = tf.layers.conv2d(output, 1, [1, output.shape[2].value // 4], padding='same',
+                                      use_bias=False, reuse=reuse, kernel_regularizer=self.regularizer)
 
         flatten = tf.layers.flatten(output)
         if not reuse:
             print("flatten shape {}".format(flatten.shape))
-        fcl = tf.layers.dense(flatten, OUTPUT_SIZE, name="fcl", reuse=reuse)
+        fcl = tf.layers.dense(flatten, OUTPUT_SIZE, name="fcl", reuse=reuse, kernel_regularizer=self.regularizer)
         return tf.layers.dropout(fcl, training=self.training, name="output")
 
     def cosine(self, vec1, vec2):
@@ -76,11 +75,18 @@ class ResCNN:
         return p / tf.multiply(tf.sqrt(tf.reduce_sum(tf.square(vec1), 1)),
                                tf.sqrt(tf.reduce_sum(tf.square(vec2), 1)))
 
+    def l1norm(self, vec1, vec2):
+        return tf.reduce_sum(tf.abs(vec1 - vec2), axis=1)
+
     def cal_loss(self):
-        logits = tf.nn.softmax(tf.stack([self.pos_sim, self.neg_sim], axis=1))
+        margin = 0.08
+        loss1 = tf.maximum(0.0, margin + self.neg_sim + self.neg_pos_sim - self.pos_sim)
+
+        logits = tf.nn.softmax(tf.stack([self.neg_dist, self.pos_dist], axis=1))
         right = tf.matmul(logits, tf.constant([0, 1], shape=[2, 1], dtype=tf.float32))
-        loss = tf.square(1 + right)
-        return tf.reduce_mean(loss)
+        loss2 = tf.square(right)
+
+        return tf.reduce_mean(loss1 + loss2)
 
     def cal_accu(self):
         mean = tf.cast(tf.argmax(tf.stack([self.neg_sim, self.pos_sim], axis=1), axis=1), dtype=tf.float32)

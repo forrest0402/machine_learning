@@ -27,4 +27,4 @@ test.py
 /loss*/
 /traindata/
 *.zip
-
+tensorboard/

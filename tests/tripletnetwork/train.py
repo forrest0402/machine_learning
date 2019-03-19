@@ -25,7 +25,7 @@ EPOCH = 3
 TRAIN_BUFFER_SIZE = 8196
 TRAIN_FILE_LINE_NUM = 0
 
-TEST_BATCH_SIZE = 1024
+TEST_BATCH_SIZE = 128
 TEST_FILE_LINE_NUM = 0
 
 REGULARIZATION_RATE = 1e-4
@@ -67,7 +67,7 @@ def train(argv=None):
     train_iterator = train_data.make_initializable_iterator()
     train_input_element = train_iterator.get_next()
 
-    test_data = make_dataset(TEST_FILE, TEST_BATCH_SIZE, TEST_BATCH_SIZE, EPOCH)
+    test_data = make_dataset(TEST_FILE, TEST_BATCH_SIZE, TEST_BATCH_SIZE, 1000000)
     test_iterator = test_data.make_initializable_iterator()
     test_input_element = test_iterator.get_next()
 
@@ -90,7 +90,7 @@ def train(argv=None):
     # batch normalization need this op to update its variables
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     with tf.control_dependencies(update_ops):
-        train_op = optimizer.minimize(model.loss, global_step=global_step)
+        train_op = optimizer.minimize(model.cal_loss, global_step=global_step)
 
     # delete files
     if os.path.exists(log_file):
@@ -118,7 +118,7 @@ def train(argv=None):
         if ckpt and ckpt.model_checkpoint_path:
             logging.info("load model from {}".format(ckpt.model_checkpoint_path))
             saver.restore(sess, ckpt.model_checkpoint_path)
-            test(model, sess, test_input_element, word_vec)
+            # test(model, sess, test_input_element, word_vec)
         else:
             logging.info("no existing model found")
             sess.run((tf.global_variables_initializer(), tf.local_variables_initializer()))
@@ -139,13 +139,15 @@ def train(argv=None):
                 x1, x2, x3 = helper.read_from_input(train_input, word_vec)
 
                 summary, _, loss_v, accu, __ = sess.run(
-                        [merge, train_op, model.loss, model.accuracy, global_step], feed_dict={
+                        [merge, train_op, model.cal_loss, model.accuracy, global_step], feed_dict={
                             model.anchor_input  : x1,
                             model.positive_input: x2,
                             model.negative_input: x3,
                             model.training      : True})
                 write.add_summary(summary, global_step=global_step.eval())
                 accus.append(accu)
+                if step % 10000 == 0 or step == 1000 or step == 2000:
+                    test(model, sess, test_input_element, word_vec)
                 if step % 1000 == 0:
                     # test
                     # gamma = tf.get_default_graph().get_tensor_by_name("triplet/output_bn/gamma:0")
@@ -162,14 +164,15 @@ def train(argv=None):
                                                                model.training      : False})
 
                     if test_accu < 0.3:
-                        logging.info(pos_sim)
-                        logging.info(neg_sim)
+                        logging.info(np.average(pos_sim))
+                        logging.info(np.average(neg_sim))
 
                     test_accus.append(test_accu)
 
-                    logging.info("epoch {}, step {}/{}, loss {}, accuracy {}, test accuracy {}, mean accu {}/{}"
-                                 .format(epoch_num, step, round_number, loss_v, accu, test_accu,
-                                         np.mean(accus), np.mean(test_accus)))
+                    logging.info(
+                            "epoch {}, step {}/{}, loss {}, accu {}, test accu {}, pos/neg sim: {}/{}, mean accu {}/{}"
+                                .format(epoch_num, step, round_number, loss_v, accu, test_accu, np.average(pos_sim),
+                                        np.average(neg_sim), np.mean(accus), np.mean(test_accus)))
 
                     saver.save(sess, model_save_path + SAVE_MODEL_NAME, global_step=global_step)
                     helper.write_loss(loss_file, loss=loss_v)

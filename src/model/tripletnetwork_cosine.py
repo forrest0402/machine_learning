@@ -41,7 +41,7 @@ class TextCnn:
         with tf.name_scope("loss"):
             self.loss = self.cal_loss1()
             if regularizer is not None:
-                self.loss += tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+                self.loss += tf.losses.get_regularization_loss()
             tf.summary.scalar('loss', tf.reduce_sum(self.loss))
 
         with tf.name_scope("accuracy"):

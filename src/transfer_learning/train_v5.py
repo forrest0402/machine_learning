@@ -57,7 +57,7 @@ def train():
     optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     with tf.control_dependencies(update_ops):
-        train_op = optimizer.minimize(model.loss, global_step=global_step)
+        train_op = optimizer.minimize(model.cal_loss, global_step=global_step)
 
     tf_config = tf.ConfigProto()
     tf_config.gpu_options.allow_growth = True
@@ -99,7 +99,7 @@ def train():
             x1, x2, x3 = helper.get_input_embedding(input, id2vector)
 
             _, loss_v, accu, __ = sess.run(
-                [train_op, model.loss, model.accuracy, global_step], feed_dict={
+                [train_op, model.cal_loss, model.accuracy, global_step], feed_dict={
                     model.anchor_input: x1,
                     model.positive_input: x2,
                     model.negative_input: x3,
